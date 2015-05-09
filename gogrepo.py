@@ -255,7 +255,7 @@ def cmd_login(user, passwd):
     If passwd is None, the user will be prompted for one in the console.
     """
     if user is None:
-        user = getpass.getpass("enter username: ")
+        user = raw_input("enter username: ")
     if passwd is None:
         passwd = getpass.getpass("enter password: ")
 
