@@ -30,11 +30,11 @@ Quick Start -- Typical Use Case
 
 * Fetch all game and bonus information from GOG for items that you own and save into a local manifest file. Run this whenever you want to discover newly added games or game updates.
 
-  ``gogrepo.py update``
+  ``gogrepo.py update -os windows linux mac -lang English``
 
 * Download the games and bonus files for the OS and languages you want for all items known from the saved manifest file.
 
-  ``gogrepo.py download -os win linux osx -lang en``
+  ``gogrepo.py download``
 
 * Verify and report integrity of all downloaded files. Does MD5, zip integrity, and expected filesize verification. This makes sure your game files can actually be read back and are healthy.
 
@@ -65,12 +65,12 @@ update or download command. Run this once first before doing update and download
 
 ``gogrepo.py download`` Use the saved manifest file from an update command, and download all known game items and bonus files.
 
-    download [-h] [-dryrun] [-skipbonus] [-wait WAIT] [savedir]
-    savedir     directory to save downloads to
-    -h, --help  show this help message and exit
-    -dryrun     display, but skip downloading of any files
-    -skipbonus  skip downloading of any GOG bonus files
-    -wait WAIT  wait this long in hours before starting
+    download [-h] [-dryrun] [-skipextras] [-wait WAIT] [savedir]
+    savedir      directory to save downloads to
+    -h, --help   show this help message and exit
+    -dryrun      display, but skip downloading of any files
+    -skipextras  skip downloading of any GOG extra files
+    -wait WAIT   wait this long in hours before starting
 
 --
 
@@ -107,8 +107,8 @@ new GOG folder with clean game directory names and file names as GOG has them na
 
 Requirements
 ------------
-* Python 2.7
-* html5lib (https://github.com/html5lib/html5lib-python)
+* Python 2.7 (Python 3 support coming soon)
+* Latest version of html5lib (https://github.com/html5lib/html5lib-python)
 
 
 TODO

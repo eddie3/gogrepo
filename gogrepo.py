@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 __appname__ = 'gogrepo.py'
 __author__ = 'eddie3'
-__version__ = '0.2'
+__version__ = '0.3'
 __url__ = 'https://github.com/eddie3/gogrepo'
 
 # imports
@@ -61,9 +61,13 @@ treebuilder = html5lib.treebuilders.getTreeBuilder('etree')
 parser = html5lib.HTMLParser(tree=treebuilder, namespaceHTMLElements=False)
 
 # GOG URLs
-GOG_HOME_URL = r'http://www.gog.com'
-GOG_AJAX_URL = r'https://www.gog.com/account/ajax'
+GOG_HOME_URL = r'https://www.gog.com'
+GOG_ACCOUNT_URL = r'https://www.gog.com/account'
 GOG_LOGIN_URL = r'https://login.gog.com/login_check'
+
+# GOG Constants
+GOG_MEDIA_TYPE_GAME  = '1'
+GOG_MEDIA_TYPE_MOVIE = '2'
 
 # HTTP request settings
 HTTP_FETCH_DELAY = 1   # in seconds
@@ -73,8 +77,13 @@ HTTP_GAME_DOWNLOADER_THREADS = 4
 HTTP_PERM_ERRORCODES = (404, 403, 503)
 
 # Save manifest data for these os and lang combinations
-DEFAULT_OS_LIST = ['win']
-DEFAULT_LANG_LIST = ['en']
+DEFAULT_OS_LIST = ['windows']
+DEFAULT_LANG_LIST = ['English']
+
+VALID_OS_TYPES = ['windows', 'linux', 'mac']
+
+# These file types don't have md5 data from GOG
+SKIP_MD5_FILE_EXT = ['.txt', '.zip']
 
 
 def request(url, args=None, byte_range=None, retries=HTTP_RETRY_COUNT, delay=HTTP_FETCH_DELAY):
@@ -95,7 +104,7 @@ def request(url, args=None, byte_range=None, retries=HTTP_RETRY_COUNT, delay=HTT
     except (urllib2.HTTPError, urllib2.URLError, socket.error, httplib.BadStatusLine) as e:
         if isinstance(e, urllib2.HTTPError):
             if e.code in HTTP_PERM_ERRORCODES:  # do not retry these HTTP codes
-                warn('request failed: %s. will not retry.', e)
+                warn('request failed: %s.  will not retry.', e)
                 raise
         if retries > 0:
             _retry = True
@@ -145,6 +154,13 @@ def load_manifest():
     return load_attrdicts(MANIFEST_FILENAME)
 
 
+def save_manifest(items):
+    info('saving manifest to %s...' % MANIFEST_FILENAME)
+    with open(MANIFEST_FILENAME, 'w') as w:
+        print >>w, '# %d games' % len(items)
+        pprint.pprint(items.values(), width=123, stream=w)
+
+
 def open_notrunc(name, bufsize=4*1024):
     flags = os.O_WRONLY | os.O_CREAT
     if hasattr(os, "O_BINARY"):
@@ -177,30 +193,92 @@ def test_zipfile(filename):
     return False
 
 
-def fetch_game_shelf_data():
-    full_game_list_html = []
-    all_games_fetched = False
-    i = 0
+def fetch_file_info(d, fetch_md5):
+    # fetch file name/size
+    with request(d.href, byte_range=(0, 0)) as page:
+        d.name = urlparse.urlparse(page.geturl()).path.split('/')[-1]
+        d.size = int(page.headers['Content-Range'].split('/')[-1])
 
-    # request each game shelf page until we have all game json data
-    while not all_games_fetched:
-        i += 1  # starts at page 1
-        info('downloading game shelf data (page %d)...' % i)
-        with request(GOG_AJAX_URL, args={'a': 'gamesShelfMore',
-                                         's': 'title',  # sort order
-                                         'q': '',
-                                         't': '0',
-                                         'p': str(i)}, delay=0) as data_request:
-            game_data = json.load(data_request)
+        # fetch file md5
+        if fetch_md5:
+            if os.path.splitext(page.geturl())[1].lower() not in SKIP_MD5_FILE_EXT:
+                tmp_md5_url = page.geturl().replace('?', '.xml?')
+                try:
+                    with request(tmp_md5_url) as page:
+                        shelf_etree = xml.etree.ElementTree.parse(page).getroot()
+                        d.md5 = shelf_etree.attrib['md5']
+                except urllib2.HTTPError, e:
+                    if e.code == 404:
+                        warn("no md5 data found for %s" % d.name)
+                    else:
+                        raise
 
-            if game_data['count'] == 0:
-                all_games_fetched = True
-            else:
-                full_game_list_html.append(game_data['html'])  # append new html payload
 
-    html_txt = u''.join(full_game_list_html)
+def filter_downloads(out_list, downloads_dict, lang_list, os_list):
+    """filters any downloads information against matching lang and os, translates
+    them, and extends them into out_list
+    """
+    filtered_downloads = []
 
-    return html_txt
+    # check if lang/os combo passes the specified filter
+    for lang in downloads_dict:
+        if lang in lang_list:
+            for os in downloads_dict[lang]:
+                if os in os_list:
+                    for download in downloads_dict[lang][os]:
+                        # passed the filter, create the entry
+                        d = AttrDict(desc=download['name'],
+                                     os_type=os,
+                                     lang=lang,
+                                     version=download['version'],
+                                     href=GOG_HOME_URL + download['manualUrl'],
+                                     md5=None,
+                                     name=None,
+                                     size=None
+                                     )
+                        try:
+                            fetch_file_info(d, True)
+                        except urllib2.HTTPError:
+                            warn("failed to fetch %s" % d.href)
+                        filtered_downloads.append(d)
+
+    out_list.extend(filtered_downloads)
+
+
+def filter_extras(out_list, extras_list):
+    """filters and translates extras information and adds them into out_list
+    """
+    filtered_extras = []
+
+    for extra in extras_list:
+        d = AttrDict(desc=extra['name'],
+                     os_type='extra',
+                     lang='en',
+                     version=None,
+                     href=GOG_HOME_URL + extra['manualUrl'],
+                     md5=None,
+                     name=None,
+                     size=None,
+                     )
+        try:
+            fetch_file_info(d, False)
+        except urllib2.HTTPError:
+            warn("failed to fetch %s" % d.href)
+        filtered_extras.append(d)
+
+    out_list.extend(filtered_extras)
+
+
+def filter_dlcs(item, dlc_list, lang_list, os_list):
+    """filters any downloads/extras information against matching lang and os, translates
+    them, and adds them to the item downloads/extras
+
+    dlcs can contain dlcs in a recursive fashion, and oddly GOG does do this for some titles.
+    """
+    for dlc_dict in dlc_list:
+        filter_downloads(item.downloads, dlc_dict['downloads'], lang_list, os_list)
+        filter_extras(item.extras, dlc_dict['extras'])
+        filter_dlcs(item, dlc_dict['dlcs'], lang_list, os_list)  # recursive
 
 
 def process_argv(argv):
@@ -215,10 +293,10 @@ def process_argv(argv):
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
 
-    g1 = sp1.add_parser('download', help='Download all your GOG games and bonus files')
+    g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
-    g1.add_argument('-skipbonus', action='store_true', help='skip downloading of any GOG bonus files')
+    g1.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
 
@@ -243,7 +321,16 @@ def process_argv(argv):
                     version="%s (version %s)" % (__appname__, __version__))
 
     # parse the given argv.  raises SystemExit on error
-    return p1.parse_args(argv[1:])
+    args = p1.parse_args(argv[1:])
+
+    # validate os
+    if args.cmd == 'update':
+        for os_type in args.os:
+            if os_type not in VALID_OS_TYPES:
+                error('error: specified os "%s" is not one of the valid os types %s' % (os, VALID_OS_TYPES))
+                raise SystemExit(1)
+
+    return args
 
 
 # --------
@@ -298,133 +385,82 @@ def cmd_login(user, passwd):
 
 
 def cmd_update(os_list, lang_list):
-    gamesdb = {}  # represents the AttrDict blob to eventually be saved to disk
+    media_type = GOG_MEDIA_TYPE_GAME
+    items = {}
+    i = 0
 
     load_cookies()
 
-    info('downloading game shelf data...')
-    shelf_html = fetch_game_shelf_data()
+    api_url  = GOG_ACCOUNT_URL
+    api_url += "/getFilteredProducts"
 
-    info('parsing html for game data...')
-    shelf_etree = parser.parse(shelf_html)
-    games_tree = shelf_etree.findall(".//div[@class='shelf_game']")
-    games_count = len(games_tree)
-    print_padding = len(str(games_count))
-    info('found %d games !!%s' % (games_count, '!'*(games_count/100)))  # teehee
+    # Fetch shelf data
+    while True:
+        i += 1  # starts at page 1
+        if i == 1:
+            info('fetching game product data (page %d)...' % i)
+        else:
+            info('fetching game product data (page %d / %d)...' % (i, json_data['totalPages']))
+        with request(api_url, args={'mediaType': media_type,
+                                    'sortBy': 'title',  # sort order
+                                    'page': str(i)}, delay=0) as data_request:
+            json_data = json.load(data_request)
 
+            # Parse out the interesting fields and add to items dict
+            for item_json_data in json_data['products']:
+                item = AttrDict()
+                item.id = item_json_data['id']
+                item.title = item_json_data['slug']
+                item.long_title = item_json_data['title']
+                item.genre = item_json_data['category']
+                item.dlc_count = item_json_data['dlcCount']
+                item.image_url = item_json_data['image']
+                item.store_url = item_json_data['url']
+                item.media_type = media_type
+                item.rating = item_json_data['rating']
+                item.has_updates = bool(item_json_data['updates'])
+
+                items[item.id] = item
+
+            if i >= json_data['totalPages']:
+                break
+
+    # Fetch item details
+    items_count = len(items)
+    print_padding = len(str(items_count))
+    info('found %d games !!%s' % (items_count, '!'*(items_count/100)))  # teehee
     i = 0
-    for game in games_tree:
-        g = AttrDict()
+    for item in sorted(items.values(), key=lambda item: item.title):
+        api_url  = GOG_ACCOUNT_URL
+        api_url += "/gameDetails/%d.json" % item.id
+
         i += 1
-
-        g.title = game.attrib['data-gameindex'].strip()
-
-        info("(%*d / %d) fetching game info for %s..." % (print_padding, i, games_count, g.title))
-
-        g.game_id = game.attrib['data-gameid'].strip()
-        g.background_url = game.attrib['data-background'].strip()
-        g.keywords = game.attrib['data-title'].strip()
-        g.cover_url = game.find(".//img[@src]").attrib['src']
-
-        # fetch detailed game information
-        with request(GOG_AJAX_URL, args={'a': 'gamesShelfDetails',
-                                         'g': g.game_id}) as data_request:
-            game_data = json.load(data_request)
-        game_element = parser.parse(game_data['details']['html'])
+        info("(%*d / %d) fetching game details for %s..." % (print_padding, i, items_count, item.title))
 
         try:
-            g.long_title = game_element.find(".//h2/a").text.strip()
-        except:
-            g.long_title = game_element.find(".//h2").text.strip()  # <-- some games do not have <a> tag
+            with request(api_url) as data_request:
+                item_json_data = json.load(data_request)
 
-        g.purchased = game_element.find(".//div[@class='list_purchased']").text.replace('Purchased on', '').strip()
+                item.bg_url = item_json_data['backgroundImage']
+                item.serial = item_json_data['cdKey']
+                item.forum_url = item_json_data['forumLink']
+                item.changelog = item_json_data['changelog']
+                item.release_timestamp = item_json_data['releaseTimestamp']
+                item.downloads = []
+                item.extras = []
 
-        # collect serial/cd key if the game has one
-        g.serial = ''
-        for elm in game_element.findall(".//div[@class='list_serial_h']"):
-            for serial_txt in elm.itertext():
-                g.serial += "%s\n" % serial_txt.strip()
-            g.serial = "%s\n" % g.serial.strip()
+                # prase json data for downloads/extras/dlcs
+                filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
+                filter_extras(item.extras, item_json_data['extras'])
+                filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
 
-        # collect game items in permutations of OS and Language
-        g.game_items = []
-        for lang in lang_list:
-            for os_type in os_list:
-                for dl_link in game_element.findall(".//div[@class='%s-download dldl']"
-                                                    "/div[@class='lang-item lang_%s']/a[@class='list_game_item']"
-                                                    % (os_type, lang)):
-                    g.game_items.append(AttrDict(
-                        os_type=os_type,
-                        lang=lang,
-                        href=dl_link.attrib['href'].strip(),
-                        desc=dl_link.find("./span[@class='details-underline']").text.strip())
-                    )
+        except Exception:
+            log_exception('error')
 
-        # collect bonus material
-        g.bonus_items = []
-        for dl_link in game_element.findall(".//div[@class='bonus_content_list browser']/a"):
-            g.bonus_items.append(AttrDict(
-                os_type='bonus',
-                lang=None,
-                href=dl_link.attrib['href'].strip(),
-                desc=dl_link.find("./span[@class='details-underline']").text.strip())
-            )
+    # save the manifest to disk
+    save_manifest(items)
 
-        gamesdb[g.game_id] = g
-
-    # fetch md5 and size info for each file
-    loop_cnt = 0
-    for g in sorted(gamesdb.values(), key=lambda g: g.title):
-        loop_cnt += 1
-        # determine the size, name, and url of the download
-        info('(%3d / %d) fetching md5 for %s...' % (loop_cnt, games_count, g.title))
-        for i, f in enumerate(g.game_items + g.bonus_items):
-            f.name = None
-            f.size = None
-            f.url = None
-            try:
-                with request(f.href, byte_range=(0, 0)) as page:
-                    f.name = urlparse.urlparse(page.geturl()).path.split('/')[-1]
-                    f.size = int(page.headers['Content-Range'].split('/')[-1])
-                    if i < len(g.game_items):  # skip bonus items, as they have no md5 data
-                        f.url = page.geturl()
-            except urllib2.HTTPError:
-                warn("failed to fetch %s. skipping..." % f.href)
-
-        # fetch the md5 file and chunk data for each game
-        for f in sorted(g.game_items, key=lambda g: g.name):
-            try:
-                if f.url is not None:
-                    with request(f.url.replace('?', '.xml?')) as page:
-                        shelf_etree = xml.etree.ElementTree.parse(page).getroot()
-            except urllib2.HTTPError:
-                warn("failed to fetch md5 data for %s. skipping..." % f.name)
-                continue
-            finally:
-                del f['url']
-
-            # make sure name and size matched what we expected
-            if f.name is not None:
-                assert f.name == shelf_etree.attrib['name']
-            if f.size is not None:
-                if f.size != int(shelf_etree.attrib['total_size']):
-                    error("%s manifest size mismatch detected (f.size=%d, total_size=%d)"
-                          % (f.name,
-                             f.size,
-                             int(shelf_etree.attrib['total_size'])))
-
-            f.md5 = shelf_etree.attrib['md5']
-            f.part = [(int(chunk.attrib['from']),
-                       int(chunk.attrib['to']),
-                       chunk.text)
-                      for chunk in shelf_etree.findall(".//chunk[@method='md5']")]
-            assert len(f.part) == int(shelf_etree.attrib['chunks'])
-            f.part.sort()
-
-    # write all this meta-data to disk
-    with open(MANIFEST_FILENAME, 'w') as w:
-        print >>w, '# %d games' % len(gamesdb)
-        pprint.pprint(gamesdb.values(), width=123, stream=w)
+    return items
 
 
 def cmd_import(src_dir, dest_dir):
@@ -435,20 +471,18 @@ def cmd_import(src_dir, dest_dir):
     gamesdb = load_manifest()
 
     info("collecting md5 data out of the manifest")
-    md5_info = {}  # holds tuples of (title, filename)
+    md5_info = {}  # holds tuples of (title, filename) with md5 as key
 
     for game in gamesdb:
-        for game_item in game.game_items:
-            try:
+        for game_item in game.downloads:
+            if game_item.md5 in md5_info:
                 md5_info[game_item.md5] = (game.title, game_item.name)
-            except KeyError:  # some files don't have md5's in the manifest
-                pass
 
     info("searching for files within '%s'" % src_dir)
     file_list = []
     for (root, dirnames, filenames) in os.walk(src_dir):
         for f in filenames:
-            if not f.lower().endswith('.zip'):  # skip .zip files, they never have md5 data in manifest
+            if os.path.splitext(f)[1].lower() not in SKIP_MD5_FILE_EXT:
                 file_list.append(os.path.join(root, f))
 
     info("comparing md5 file hashes")
@@ -471,52 +505,50 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipbonus, dryrun):
+def cmd_download(savedir, skipextras, dryrun):
     sizes, rates, errors = {}, {}, {}
     work = Queue.Queue()  # build a list of work items
 
     load_cookies()
 
-    gamesdb = load_manifest()
+    items = load_manifest()
 
     # Find all items to be downloaded and push into work queue
-    for game in sorted(gamesdb, key=lambda g: g.title):
-        info("{%s}" % game.title)
-        game_homedir = os.path.join(savedir, game.title)
+    for item in sorted(items, key=lambda g: g.title):
+        info("{%s}" % item.title)
+        item_homedir = os.path.join(savedir, item.title)
         if not dryrun:
-            if not os.path.isdir(game_homedir):
-                os.makedirs(game_homedir)
+            if not os.path.isdir(item_homedir):
+                os.makedirs(item_homedir)
 
-        if skipbonus:
-            game.bonus_items = []
+        if skipextras:
+            item.extras = []
 
         # Generate and save a game info text file
         if not dryrun:
-            with codecs.open(os.path.join(game_homedir, INFO_FILENAME), 'w', 'utf-8') as fd_info:
-                fd_info.write('\n-- %s -- \n\n' % game.long_title)
-                fd_info.write('title.......... %s\n' % game.title)
-                fd_info.write('keywords....... %s\n' % game.keywords)
-                fd_info.write('purchased...... %s\n' % game.purchased)
-                fd_info.write('game id........ %s\n' % game.game_id)
+            with codecs.open(os.path.join(item_homedir, INFO_FILENAME), 'w', 'utf-8') as fd_info:
+                fd_info.write('\n-- %s -- \n\n' % item.long_title)
+                fd_info.write('title.......... %s\n' % item.title)
+                fd_info.write('game id........ %s\n' % item.id)
                 fd_info.write('\ngame items.....\n')
-                for game_item in game.game_items:
+                for game_item in item.downloads:
                     fd_info.write('    [%s] -- %s\n' % (game_item.name, game_item.desc))
-                if len(game.bonus_items) > 0:
-                    fd_info.write('\nbonus items....\n')
-                    for game_item in game.bonus_items:
+                if len(item.extras) > 0:
+                    fd_info.write('\nextras.........\n')
+                    for game_item in item.extras:
                         fd_info.write('    [%s] -- %s\n' % (game_item.name, game_item.desc))
 
         # Generate and save a game serial text file
         if not dryrun:
-            if game.serial != '':
-                with codecs.open(os.path.join(game_homedir, SERIAL_FILENAME), 'w', 'utf-8') as fd_serial:
-                    fd_serial.write(game.serial)
+            if item.serial != '':
+                with codecs.open(os.path.join(item_homedir, SERIAL_FILENAME), 'w', 'utf-8') as fd_serial:
+                    fd_serial.write(item.serial)
 
         # Populate queue with all files to be downloaded
-        for game_item in game.game_items + game.bonus_items:
+        for game_item in item.downloads + item.extras:
             if game_item.name is None:
                 continue  # no game name, usually due to 404 during file fetch
-            dest_file = os.path.join(game_homedir, game_item.name)
+            dest_file = os.path.join(item_homedir, game_item.name)
 
             if os.path.isfile(dest_file):
                 if game_item.size is None:
@@ -631,7 +663,7 @@ def cmd_backup(src_dir, dest_dir):
     info('finding all known files in the manifest')
     for game in sorted(gamesdb, key=lambda g: g.title):
         touched = False
-        for itm in game.game_items + game.bonus_items:
+        for itm in game.downloads + game.extras:
             if itm.name is None:
                 continue
 
@@ -668,11 +700,11 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail):
     bad_zip_cnt = 0
     del_file_cnt = 0
 
-    gamesdb = load_manifest()
+    items = load_manifest()
 
     info('verifying all known files in the manifest')
-    for game in sorted(gamesdb, key=lambda g: g.title):
-        for itm in game.game_items + game.bonus_items:
+    for game in sorted(items, key=lambda g: g.title):
+        for itm in game.downloads + game.extras:
             if itm.name is None:
                 warn('no known filename for "%s (%s)"' % (game.title, itm.desc))
                 continue
@@ -684,16 +716,14 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail):
 
             if os.path.isfile(itm_file):
                 info('verifying %s...' % itm_dirpath)
-                if not hasattr(itm, 'md5') and not hasattr(itm, 'size'):
-                    warn('no md5 or size info found for %s' % itm_dirpath)
 
                 fail = False
-                if check_md5 and hasattr(itm, 'md5'):
+                if check_md5 and itm.md5 is not None:
                     if itm.md5 != hashfile(itm_file):
                         info('mismatched md5 for %s' % itm_dirpath)
                         bad_md5_cnt += 1
                         fail = True
-                if check_filesize and hasattr(itm, 'size'):
+                if check_filesize and itm.size is not None:
                     if itm.size != os.path.getsize(itm_file):
                         info('mismatched file size for %s' % itm_dirpath)
                         bad_size_cnt += 1
@@ -737,7 +767,7 @@ def main(args):
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipbonus, args.dryrun)
+        cmd_download(args.savedir, args.skipextras, args.dryrun)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':
@@ -759,6 +789,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         sys.exit(1)
     except SystemExit:
+        info('exiting...')
         raise
     except:
         log_exception('fatal...')
