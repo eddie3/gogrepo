@@ -78,12 +78,42 @@ HTTP_PERM_ERRORCODES = (404, 403, 503)
 
 # Save manifest data for these os and lang combinations
 DEFAULT_OS_LIST = ['windows']
-DEFAULT_LANG_LIST = ['English']
-
-VALID_OS_TYPES = ['windows', 'linux', 'mac']
+DEFAULT_LANG_LIST = ['en']
 
 # These file types don't have md5 data from GOG
 SKIP_MD5_FILE_EXT = ['.txt', '.zip']
+
+# Language table that maps two letter language to their unicode gogapi json name
+LANG_TABLE = {'en': u'English',   # English
+              'bl': u'\u0431\u044a\u043b\u0433\u0430\u0440\u0441\u043a\u0438',  # Bulgarian
+              'ru': u'\u0440\u0443\u0441\u0441\u043a\u0438\u0439',              # Russian
+              'gk': u'\u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac',        # Greek
+              'sb': u'\u0421\u0440\u043f\u0441\u043a\u0430',                    # Serbian
+              'ar': u'\u0627\u0644\u0639\u0631\u0628\u064a\u0629',              # Arabic
+              'br': u'Portugu\xeas do Brasil',  # Brazilian Portuguese
+              'jp': u'\u65e5\u672c\u8a9e',      # Japanese
+              'ko': u'\ud55c\uad6d\uc5b4',      # Korean
+              'fr': u'fran\xe7ais',             # French
+              'cn': u'\u4e2d\u6587',            # Chinese
+              'cz': u'\u010desk\xfd',           # Czech
+              'hu': u'magyar',                  # Hungarian
+              'pt': u'portugu\xeas',            # Portuguese
+              'tr': u'T\xfcrk\xe7e',            # Turkish
+              'sk': u'slovensk\xfd',            # Slovak
+              'nl': u'nederlands',              # Dutch
+              'ro': u'rom\xe2n\u0103',          # Romanian
+              'es': u'espa\xf1ol',      # Spanish
+              'pl': u'polski',          # Polish
+              'it': u'italiano',        # Italian
+              'de': u'Deutsch',         # German
+              'da': u'Dansk',           # Danish
+              'sv': u'svenska',         # Swedish
+              'fi': u'Suomi',           # Finnish
+              'no': u'norsk',           # Norsk
+              }
+
+VALID_OS_TYPES = ['windows', 'linux', 'mac']
+VALID_LANG_TYPES = LANG_TABLE.keys()
 
 
 def request(url, args=None, byte_range=None, retries=HTTP_RETRY_COUNT, delay=HTTP_FETCH_DELAY):
@@ -213,22 +243,26 @@ def fetch_file_info(d, fetch_md5):
                     else:
                         raise
 
-
 def filter_downloads(out_list, downloads_dict, lang_list, os_list):
     """filters any downloads information against matching lang and os, translates
     them, and extends them into out_list
     """
     filtered_downloads = []
 
+    # hold list of valid languages languages as known by gogapi json stuff
+    valid_langs = []
+    for lang in lang_list:
+        valid_langs.append(LANG_TABLE[lang])
+
     # check if lang/os combo passes the specified filter
     for lang in downloads_dict:
-        if lang in lang_list:
-            for os in downloads_dict[lang]:
-                if os in os_list:
-                    for download in downloads_dict[lang][os]:
+        if lang in valid_langs:
+            for os_type in downloads_dict[lang]:
+                if os_type in os_list:
+                    for download in downloads_dict[lang][os_type]:
                         # passed the filter, create the entry
                         d = AttrDict(desc=download['name'],
-                                     os_type=os,
+                                     os_type=os_type,
                                      lang=lang,
                                      version=download['version'],
                                      href=GOG_HOME_URL + download['manualUrl'],
@@ -253,7 +287,7 @@ def filter_extras(out_list, extras_list):
     for extra in extras_list:
         d = AttrDict(desc=extra['name'],
                      os_type='extra',
-                     lang='en',
+                     lang='',
                      version=None,
                      href=GOG_HOME_URL + extra['manualUrl'],
                      md5=None,
@@ -323,9 +357,13 @@ def process_argv(argv):
     # parse the given argv.  raises SystemExit on error
     args = p1.parse_args(argv[1:])
 
-    # validate os
     if args.cmd == 'update':
-        for os_type in args.os:
+        for lang in args.lang:  # validate the language
+            if lang not in VALID_LANG_TYPES:
+                error('error: specified language "%s" is not one of the valid languages %s' % (lang, VALID_LANG_TYPES))
+                raise SystemExit(1)
+
+        for os_type in args.os:  # validate the os type
             if os_type not in VALID_OS_TYPES:
                 error('error: specified os "%s" is not one of the valid os types %s' % (os_type, VALID_OS_TYPES))
                 raise SystemExit(1)

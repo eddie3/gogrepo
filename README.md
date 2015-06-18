@@ -11,9 +11,9 @@ License: GPLv3+
 
 Features
 --------
-* Ability to choose which games to download based on combinations of OS (win, linux, osx) and language (en, fr, etc...)
+* Ability to choose which games to download based on combinations of OS (windows, linux, mac) and language (en, fr, de, etc...)
 * Saves a !info.txt in each game folder with information about each game/bonus item.
-* creates a !serial.txt if the game has a special serial/cdkey (I know, not 100% DRM-free, is it?). Sometimes coupon codes are hidden here!
+* Creates a !serial.txt if the game has a special serial/cdkey (I know, not 100% DRM-free, is it?). Sometimes coupon codes are hidden here!
 * Verify your downloaded collection with full MD5, zip integrity, and expected file size checking.
 * Auto retrying of failed fetch/downloads. Sometime GOG servers report temporary errors.
 * Ability to import your already existing local collection.
@@ -30,7 +30,7 @@ Quick Start -- Typical Use Case
 
 * Fetch all game and bonus information from GOG for items that you own and save into a local manifest file. Run this whenever you want to discover newly added games or game updates.
 
-  ``gogrepo.py update -os windows linux mac -lang English``
+  ``gogrepo.py update -os windows linux mac -lang en``
 
 * Download the games and bonus files for the OS and languages you want for all items known from the saved manifest file.
 
@@ -58,8 +58,8 @@ update or download command. Run this once first before doing update and download
 
     update [-h] [-os [OS [OS ...]]] [-lang [LANG [LANG ...]]]
     -h, --help            show this help message and exit
-    -os [OS [OS ...]]     operating system(s) (ex. win linux osx)
-    -lang [LANG [LANG ...]]  game language(s) (ex. en fr)
+    -os [OS [OS ...]]     operating system(s) (ex. windows linux mac)
+    -lang [LANG [LANG ...]]  game language(s) (ex. en fr de)
 
 --
 
@@ -113,11 +113,12 @@ Requirements
 
 TODO
 ----
-* add GOG movie support
+* add ability to update and download specific games or new-items only
+* add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files
 * add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information
 * ability to customize/remap default game directory name
-* command to remove old or unexpected files/installers/patches without having to run a backup first
-* feel free to contact me with ideas or feature requests
+* add GOG movie support
+* ... feel free to contact me with ideas or feature requests!
 
 
 About
