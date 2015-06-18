@@ -327,7 +327,7 @@ def process_argv(argv):
     if args.cmd == 'update':
         for os_type in args.os:
             if os_type not in VALID_OS_TYPES:
-                error('error: specified os "%s" is not one of the valid os types %s' % (os, VALID_OS_TYPES))
+                error('error: specified os "%s" is not one of the valid os types %s' % (os_type, VALID_OS_TYPES))
                 raise SystemExit(1)
 
     return args
