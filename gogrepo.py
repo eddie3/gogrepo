@@ -597,6 +597,8 @@ def cmd_download(savedir, skipextras, dryrun):
         if not dryrun:
             if item.serial != '':
                 with codecs.open(os.path.join(item_homedir, SERIAL_FILENAME), 'w', 'utf-8') as fd_serial:
+                    item.serial = item.serial.replace(u'<span>', '')
+                    item.serial = item.serial.replace(u'</span>', os.linesep)
                     fd_serial.write(item.serial)
 
         # Populate queue with all files to be downloaded
