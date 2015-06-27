@@ -1,6 +1,6 @@
 gogrepo
 -------
-Python-based tool for downloading all your GOG.com game and bonus collections to your local computer for full offline enjoyment.
+Python-based tool for downloading your GOG.com game collections and extras to your local computer for full offline enjoyment.
 
 It is a clean standalone python script that can be run from anywhere. It requires a typical Python 2.7 installation and html5lib.
 
@@ -12,7 +12,7 @@ License: GPLv3+
 Features
 --------
 * Ability to choose which games to download based on combinations of OS (windows, linux, mac) and language (en, fr, de, etc...)
-* Saves a !info.txt in each game folder with information about each game/bonus item.
+* Saves a !info.txt in each game folder with information about each game/extra item.
 * Creates a !serial.txt if the game has a special serial/cdkey (I know, not 100% DRM-free, is it?). Sometimes coupon codes are hidden here!
 * Verify your downloaded collection with full MD5, zip integrity, and expected file size checking.
 * Auto retrying of failed fetch/downloads. Sometime GOG servers report temporary errors.
@@ -108,28 +108,18 @@ new GOG folder with clean game directory names and file names as GOG has them na
 Requirements
 ------------
 * Python 2.7 (Python 3 support coming soon)
-* Latest version of html5lib (https://github.com/html5lib/html5lib-python)
+* html5lib 0.99999 (https://github.com/html5lib/html5lib-python)
+* html2text 2015.6.21 (https://pypi.python.org/pypi/html2text) (optional, used for prettying up gog game changelog html)
+
+I recommend you use `pip` to install the above python modules. 
 
 
 TODO
 ----
 * add ability to update and download specific games or new-items only
 * add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files
+* support resuming manifest updating
 * add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information
 * ability to customize/remap default game directory name
 * add GOG movie support
 * ... feel free to contact me with ideas or feature requests!
-
-
-About
------
-I am a big fan of GOG and what they do.  They have brought back purchasable classic games and enforce a DRM-free policy
-that makes me feel like I own the content that I've purchased. I like the idea of being able to download, locally save,
-and choose and play anything I want whenever I want without an online dependency. I thought it would be a nice home
-project outside of my fulltime job to make a script that downloaded and kept my collection up to date locally.
-
-Special thanks to evenpowers and his https://github.com/evanpowers/gog-backup github project. I found it while googling
-to see if other such projects already existed (preferably in one of my favorite languages, Python). It doesn't work anymore
-and hasn't been updated since Feb 2012, but it has some nice salvageable ideas and code. I consider gogrepo
-to be somewhat of a fork and spiritual successor of gog-backup with some features added and removed.
-If there is any feature you miss from gog-backup, let me know and I will probably add it.

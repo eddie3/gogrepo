@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 __appname__ = 'gogrepo.py'
 __author__ = 'eddie3'
-__version__ = '0.3'
+__version__ = '0.3a'
 __url__ = 'https://github.com/eddie3/gogrepo'
 
 # imports
@@ -30,6 +30,12 @@ import datetime
 import shutil
 import socket
 import xml.etree.ElementTree
+
+# optional imports
+try:
+    from html2text import html2text
+except ImportError:
+    def html2text(x): return x
 
 # configure logging
 logFormatter = logging.Formatter("%(asctime)s | %(message)s", datefmt='%H:%M:%S')
@@ -565,16 +571,27 @@ def cmd_download(savedir, skipextras, dryrun):
         # Generate and save a game info text file
         if not dryrun:
             with codecs.open(os.path.join(item_homedir, INFO_FILENAME), 'w', 'utf-8') as fd_info:
-                fd_info.write('\n-- %s -- \n\n' % item.long_title)
-                fd_info.write('title.......... %s\n' % item.title)
-                fd_info.write('game id........ %s\n' % item.id)
-                fd_info.write('\ngame items.....\n')
+                fd_info.write(u'{0}-- {1} --{0}{0}'.format(os.linesep, item.long_title))
+                fd_info.write(u'title.......... {}{}'.format(item.title, os.linesep))
+                fd_info.write(u'genre.......... {}{}'.format(item.genre, os.linesep))
+                fd_info.write(u'game id........ {}{}'.format(item.id, os.linesep))
+                fd_info.write(u'url............ {}{}'.format(GOG_HOME_URL + item.store_url, os.linesep))
+                if item.rating > 0:
+                    fd_info.write(u'user rating.... {}%{}'.format(item.rating * 2, os.linesep))
+                if item.release_timestamp > 0:
+                    rel_date = datetime.datetime.fromtimestamp(item.release_timestamp).strftime('%B %d, %Y')
+                    fd_info.write(u'release date... {}{}'.format(rel_date, os.linesep))
+                fd_info.write(u'{0}game items.....:{0}{0}'.format(os.linesep))
                 for game_item in item.downloads:
-                    fd_info.write('    [%s] -- %s\n' % (game_item.name, game_item.desc))
+                    fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
                 if len(item.extras) > 0:
-                    fd_info.write('\nextras.........\n')
+                    fd_info.write(u'{0}extras.........:{0}{0}'.format(os.linesep))
                     for game_item in item.extras:
-                        fd_info.write('    [%s] -- %s\n' % (game_item.name, game_item.desc))
+                        fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
+                if item.changelog:
+                    fd_info.write(u'{0}changelog......:{0}{0}'.format(os.linesep))
+                    fd_info.write(html2text(item.changelog).strip())
+                    fd_info.write(os.linesep)
 
         # Generate and save a game serial text file
         if not dryrun:
