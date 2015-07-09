@@ -337,6 +337,7 @@ def process_argv(argv):
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
     g1.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
+    g1.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
 
@@ -549,7 +550,7 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, dryrun):
+def cmd_download(savedir, skipextras, skipgames, dryrun):
     sizes, rates, errors = {}, {}, {}
     work = Queue.Queue()  # build a list of work items
 
@@ -567,6 +568,9 @@ def cmd_download(savedir, skipextras, dryrun):
 
         if skipextras:
             item.extras = []
+
+        if skipgames:
+            item.downloads = []
 
         # Generate and save a game info text file
         if not dryrun:
@@ -824,7 +828,7 @@ def main(args):
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.dryrun)
+        cmd_download(args.savedir, args.skipextras, args.skipgames, args.dryrun)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':
