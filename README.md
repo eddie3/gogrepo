@@ -60,6 +60,7 @@ update or download command. Run this once first before doing update and download
     -h, --help            show this help message and exit
     -os [OS [OS ...]]     operating system(s) (ex. windows linux mac)
     -lang [LANG [LANG ...]]  game language(s) (ex. en fr de)
+    -skipknown            only update new games in your library
 
 --
 
@@ -70,6 +71,7 @@ update or download command. Run this once first before doing update and download
     -h, --help   show this help message and exit
     -dryrun      display, but skip downloading of any files
     -skipextras  skip downloading of any GOG extra files
+    -skipgames   skip downloading of any GOG game files
     -wait WAIT   wait this long in hours before starting
 
 --
