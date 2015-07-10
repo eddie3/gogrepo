@@ -332,6 +332,7 @@ def process_argv(argv):
     g1 = sp1.add_parser('update', help='Update locally saved game manifest from GOG server')
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
+    g1.add_argument('-skipknown', action='store_true', help='games already known are not updated')
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
@@ -429,10 +430,12 @@ def cmd_login(user, passwd):
     error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list):
+def cmd_update(os_list, lang_list, skipknown):
     media_type = GOG_MEDIA_TYPE_GAME
     items = {}
     i = 0
+
+    gamesdb = load_manifest()
 
     load_cookies()
 
@@ -476,6 +479,17 @@ def cmd_update(os_list, lang_list):
     info('found %d games !!%s' % (items_count, '!'*(items_count/100)))  # teehee
     i = 0
     for item in sorted(items.values(), key=lambda item: item.title):
+        if skipknown:
+            for game in sorted(gamesdb, key=lambda g: g.title):
+                if item.title == game.title:
+                    found = True
+                    break
+                else:
+                    found = False
+                    continue
+            if found:
+                continue
+    
         api_url  = GOG_ACCOUNT_URL
         api_url += "/gameDetails/%d.json" % item.id
 
@@ -823,7 +837,7 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        cmd_update(args.os, args.lang)
+        cmd_update(args.os, args.lang, args.skipknown)
     elif args.cmd == 'download':
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
