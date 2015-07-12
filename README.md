@@ -73,6 +73,7 @@ update or download command. Run this once first before doing update and download
     -skipextras  skip downloading of any GOG extra files
     -skipgames   skip downloading of any GOG game files
     -wait WAIT   wait this long in hours before starting
+    -id <title>  specify the game to download by 'title' from the manifest
 
 --
 
