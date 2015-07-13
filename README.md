@@ -60,7 +60,8 @@ update or download command. Run this once first before doing update and download
     -h, --help            show this help message and exit
     -os [OS [OS ...]]     operating system(s) (ex. windows linux mac)
     -lang [LANG [LANG ...]]  game language(s) (ex. en fr de)
-    -skipknown            only update new games in your library
+    -skipknown            only update new games in your library (not with -id)
+    -id <title>           specify the game to update by 'title' from the manifest (not with -skipknown)
 
 --
 
