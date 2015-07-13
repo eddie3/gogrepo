@@ -40,6 +40,20 @@ Quick Start -- Typical Use Case
 
   ``gogrepo.py verify``
 
+Advanced Usage -- Common Tasks
+----------------
+
+* Add new games from your library to the manifest.
+
+  ``gogrepo.py update -os windows -lang en de -skipknown``
+
+* Update a single game in your manifest.
+
+  ``gogrepo.py update -os windows -lang en de -id trine_2_complete_story``
+
+* Download a single game in your manifest.
+
+  ``gogrepo.py download -id trine_2_complete_story``
 
 Commands
 --------
@@ -117,13 +131,14 @@ Requirements
 
 I recommend you use `pip` to install the above python modules. 
 
+  ``pip install html5lib html2text``
 
 TODO
 ----
-* add ability to update and download specific games or new-items only
+* ~~add ability to update and download specific games or new-items only~~
 * add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files
 * support resuming manifest updating
-* add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information
+* ~~add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information~~
 * ability to customize/remap default game directory name
 * add GOG movie support
 * ... feel free to contact me with ideas or feature requests!
