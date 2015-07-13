@@ -30,7 +30,7 @@ Quick Start -- Typical Use Case
 
 * Fetch all game and bonus information from GOG for items that you own and save into a local manifest file. Run this whenever you want to discover newly added games or game updates.
 
-  ``gogrepo.py update -os windows linux mac -lang en``
+  ``gogrepo.py update -os windows linux mac -lang en de fr``
 
 * Download the games and bonus files for the OS and languages you want for all items known from the saved manifest file.
 
