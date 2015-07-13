@@ -76,6 +76,7 @@ update or download command. Run this once first before doing update and download
     -lang [LANG [LANG ...]]  game language(s) (ex. en fr de)
     -skipknown            only update new games in your library (not with -id)
     -id <title>           specify the game to update by 'title' from the manifest (not with -skipknown)
+                          <title> can be found in the !info.txt of the game directory
 
 --
 
@@ -89,6 +90,7 @@ update or download command. Run this once first before doing update and download
     -skipgames   skip downloading of any GOG game files
     -wait WAIT   wait this long in hours before starting
     -id <title>  specify the game to download by 'title' from the manifest
+                 <title> can be found in the !info.txt of the game directory
 
 --
 
