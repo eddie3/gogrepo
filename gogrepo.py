@@ -333,6 +333,7 @@ def process_argv(argv):
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
     g1.add_argument('-skipknown', action='store_true', help='games already known are not updated')
+    g1.add_argument('-id', action='store', help='id of the game in the manifest to update')
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
@@ -431,7 +432,7 @@ def cmd_login(user, passwd):
     error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list, skipknown):
+def cmd_update(os_list, lang_list, skipknown, id):
     media_type = GOG_MEDIA_TYPE_GAME
     items = {}
     i = 0
@@ -498,6 +499,25 @@ def cmd_update(os_list, lang_list, skipknown):
                     continue
             if found:
                 continue
+
+        if id:
+            if item.title != id:
+                for game in sorted(gamesdb, key=lambda g: g.title):
+                    if item.title == game.title:
+                        found = True
+                        item.bg_url = game.bg_url
+                        item.serial = game.serial
+                        item.forum_url = game.forum_url
+                        item.changelog = game.changelog
+                        item.release_timestamp = game.release_timestamp
+                        item.downloads = game.downloads
+                        item.extras = game.extras
+                        break
+                    else:
+                        found = False
+                        continue
+                if found:
+                    continue
     
         api_url  = GOG_ACCOUNT_URL
         api_url += "/gameDetails/%d.json" % item.id
@@ -855,7 +875,7 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        cmd_update(args.os, args.lang, args.skipknown)
+        cmd_update(args.os, args.lang, args.skipknown, args.id)
     elif args.cmd == 'download':
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
