@@ -259,7 +259,7 @@ def filter_downloads(out_list, downloads_dict, lang_list, os_list):
     valid_langs = []
     for lang in lang_list:
         valid_langs.append(LANG_TABLE[lang])
-
+        
     # check if lang/os combo passes the specified filter
     for lang in downloads_dict:
         if lang in valid_langs:
@@ -504,7 +504,6 @@ def cmd_update(os_list, lang_list, skipknown, id):
             if item.title != id:
                 for game in sorted(gamesdb, key=lambda g: g.title):
                     if item.title == game.title:
-                        found = True
                         item.bg_url = game.bg_url
                         item.serial = game.serial
                         item.forum_url = game.forum_url
@@ -514,10 +513,8 @@ def cmd_update(os_list, lang_list, skipknown, id):
                         item.extras = game.extras
                         break
                     else:
-                        found = False
                         continue
-                if found:
-                    continue
+                continue
     
         api_url  = GOG_ACCOUNT_URL
         api_url += "/gameDetails/%d.json" % item.id
@@ -538,7 +535,7 @@ def cmd_update(os_list, lang_list, skipknown, id):
                 item.extras = []
 
                 # prase json data for downloads/extras/dlcs
-                filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
+                filter_downloads(item.downloads, dict(item_json_data['downloads']), lang_list, os_list)
                 filter_extras(item.extras, item_json_data['extras'])
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
 
