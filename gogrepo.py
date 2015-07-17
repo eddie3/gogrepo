@@ -249,11 +249,12 @@ def fetch_file_info(d, fetch_md5):
                     else:
                         raise
 
-def filter_downloads(out_list, downloads_dict, lang_list, os_list):
+def filter_downloads(out_list, downloads_list, lang_list, os_list):
     """filters any downloads information against matching lang and os, translates
     them, and extends them into out_list
     """
     filtered_downloads = []
+    downloads_dict = dict(downloads_list)
 
     # hold list of valid languages languages as known by gogapi json stuff
     valid_langs = []
@@ -535,7 +536,7 @@ def cmd_update(os_list, lang_list, skipknown, id):
                 item.extras = []
 
                 # prase json data for downloads/extras/dlcs
-                filter_downloads(item.downloads, dict(item_json_data['downloads']), lang_list, os_list)
+                filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
                 filter_extras(item.extras, item_json_data['extras'])
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
 
