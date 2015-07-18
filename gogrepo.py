@@ -598,6 +598,7 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
     load_cookies()
 
     items = load_manifest()
+    work_dict = dict()
     
     if id:
         for item in sorted(items, key=lambda g: g.title):
@@ -674,7 +675,10 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
             info('     download   %s' % game_item.name)
             sizes[dest_file] = game_item.size
 
-            work.put((game_item.href, game_item.size, 0, game_item.size-1, dest_file))
+            work_dict[dest_file] = (game_item.href, game_item.size, 0, game_item.size-1, dest_file)
+    
+    for work_item in work_dict:
+        work.put(work_dict[work_item])
 
     if dryrun:
         return  # bail, as below just kicks off the actual downloading
