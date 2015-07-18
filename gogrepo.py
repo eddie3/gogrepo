@@ -260,7 +260,7 @@ def filter_downloads(out_list, downloads_list, lang_list, os_list):
     valid_langs = []
     for lang in lang_list:
         valid_langs.append(LANG_TABLE[lang])
-
+        
     # check if lang/os combo passes the specified filter
     for lang in downloads_dict:
         if lang in valid_langs:
@@ -333,11 +333,15 @@ def process_argv(argv):
     g1 = sp1.add_parser('update', help='Update locally saved game manifest from GOG server')
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
+    g1.add_argument('-skipknown', action='store_true', help='games already known are not updated')
+    g1.add_argument('-id', action='store', help='id of the game in the manifest to update')
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
     g1.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
+    g1.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
+    g1.add_argument('-id', action='store', help='id of the game in the manifest to download')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
 
@@ -429,10 +433,12 @@ def cmd_login(user, passwd):
     error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list):
+def cmd_update(os_list, lang_list, skipknown, id):
     media_type = GOG_MEDIA_TYPE_GAME
     items = {}
     i = 0
+
+    gamesdb = load_manifest()
 
     load_cookies()
 
@@ -475,7 +481,42 @@ def cmd_update(os_list, lang_list):
     print_padding = len(str(items_count))
     info('found %d games !!%s' % (items_count, '!'*(items_count/100)))  # teehee
     i = 0
+    found = False
     for item in sorted(items.values(), key=lambda item: item.title):
+        if skipknown:
+            for game in sorted(gamesdb, key=lambda g: g.title):
+                if item.title == game.title:
+                    found = True
+                    item.bg_url = game.bg_url
+                    item.serial = game.serial
+                    item.forum_url = game.forum_url
+                    item.changelog = game.changelog
+                    item.release_timestamp = game.release_timestamp
+                    item.downloads = game.downloads
+                    item.extras = game.extras
+                    break
+                else:
+                    found = False
+                    continue
+            if found:
+                continue
+
+        if id:
+            if item.title != id:
+                for game in sorted(gamesdb, key=lambda g: g.title):
+                    if item.title == game.title:
+                        item.bg_url = game.bg_url
+                        item.serial = game.serial
+                        item.forum_url = game.forum_url
+                        item.changelog = game.changelog
+                        item.release_timestamp = game.release_timestamp
+                        item.downloads = game.downloads
+                        item.extras = game.extras
+                        break
+                    else:
+                        continue
+                continue
+    
         api_url  = GOG_ACCOUNT_URL
         api_url += "/gameDetails/%d.json" % item.id
 
@@ -550,13 +591,22 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, dryrun):
+def cmd_download(savedir, skipextras, skipgames, dryrun, id):
     sizes, rates, errors = {}, {}, {}
     work = Queue.Queue()  # build a list of work items
 
     load_cookies()
 
     items = load_manifest()
+    
+    if id:
+        for item in sorted(items, key=lambda g: g.title):
+            if item.title == id:
+                oldlist = list(items)
+                items.remove(item)
+                newlist = [game for game in oldlist if game not in items]
+                items = newlist
+                break
 
     # Find all items to be downloaded and push into work queue
     for item in sorted(items, key=lambda g: g.title):
@@ -568,6 +618,9 @@ def cmd_download(savedir, skipextras, dryrun):
 
         if skipextras:
             item.extras = []
+
+        if skipgames:
+            item.downloads = []
 
         # Generate and save a game info text file
         if not dryrun:
@@ -820,12 +873,12 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        cmd_update(args.os, args.lang)
+        cmd_update(args.os, args.lang, args.skipknown, args.id)
     elif args.cmd == 'download':
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.dryrun)
+        cmd_download(args.savedir, args.skipextras, args.skipgames, args.dryrun, args.id)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':

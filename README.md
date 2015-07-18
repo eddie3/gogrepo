@@ -30,7 +30,7 @@ Quick Start -- Typical Use Case
 
 * Fetch all game and bonus information from GOG for items that you own and save into a local manifest file. Run this whenever you want to discover newly added games or game updates.
 
-  ``gogrepo.py update -os windows linux mac -lang en``
+  ``gogrepo.py update -os windows linux mac -lang en de fr``
 
 * Download the games and bonus files for the OS and languages you want for all items known from the saved manifest file.
 
@@ -40,6 +40,20 @@ Quick Start -- Typical Use Case
 
   ``gogrepo.py verify``
 
+Advanced Usage -- Common Tasks
+----------------
+
+* Add new games from your library to the manifest.
+
+  ``gogrepo.py update -os windows -lang en de -skipknown``
+
+* Update a single game in your manifest.
+
+  ``gogrepo.py update -os windows -lang en de -id trine_2_complete_story``
+
+* Download a single game in your manifest.
+
+  ``gogrepo.py download -id trine_2_complete_story``
 
 Commands
 --------
@@ -56,21 +70,27 @@ update or download command. Run this once first before doing update and download
 
 ``gogrepo.py update`` Fetch game data and information from GOG.com for the specified operating systems and languages. This collects file game titles, download links, serial numbers, MD5/filesize data and saves the data locally in a manifest file. Manifest is saved in a gog-manifest.dat file
 
-    update [-h] [-os [OS [OS ...]]] [-lang [LANG [LANG ...]]]
+    update [-h] [-os [OS [OS ...]]] [-lang [LANG [LANG ...]]] [-skipknown | -id <title>]
     -h, --help            show this help message and exit
     -os [OS [OS ...]]     operating system(s) (ex. windows linux mac)
     -lang [LANG [LANG ...]]  game language(s) (ex. en fr de)
+    -skipknown            only update new games in your library (not with -id)
+    -id <title>           specify the game to update by 'title' from the manifest (not with -skipknown)
+                          <title> can be found in the !info.txt of the game directory
 
 --
 
 ``gogrepo.py download`` Use the saved manifest file from an update command, and download all known game items and bonus files.
 
-    download [-h] [-dryrun] [-skipextras] [-wait WAIT] [savedir]
-    savedir      directory to save downloads to
+    download [-h] [-dryrun] [-skipextras] [-skipextras] [-skipgames] [-wait WAIT] [-id <title>] [savedir]
     -h, --help   show this help message and exit
     -dryrun      display, but skip downloading of any files
     -skipextras  skip downloading of any GOG extra files
+    -skipgames   skip downloading of any GOG game files
     -wait WAIT   wait this long in hours before starting
+    -id <title>  specify the game to download by 'title' from the manifest
+                 <title> can be found in the !info.txt of the game directory
+    savedir      directory to save downloads to
 
 --
 
@@ -113,13 +133,14 @@ Requirements
 
 I recommend you use `pip` to install the above python modules. 
 
+  ``pip install html5lib html2text``
 
 TODO
 ----
-* add ability to update and download specific games or new-items only
+* ~~add ability to update and download specific games or new-items only~~
 * add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files
 * support resuming manifest updating
-* add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information
+* ~~add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information~~
 * ability to customize/remap default game directory name
 * add GOG movie support
 * ... feel free to contact me with ideas or feature requests!
