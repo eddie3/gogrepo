@@ -70,12 +70,13 @@ update or download command. Run this once first before doing update and download
 
 ``gogrepo.py update`` Fetch game data and information from GOG.com for the specified operating systems and languages. This collects file game titles, download links, serial numbers, MD5/filesize data and saves the data locally in a manifest file. Manifest is saved in a gog-manifest.dat file
 
-    update [-h] [-os [OS [OS ...]]] [-lang [LANG [LANG ...]]] [-skipknown | -id <title>]
+    update [-h] [-os [OS [OS ...]]] [-lang [LANG [LANG ...]]] [-skipknown | -updateonly | -id <title>]
     -h, --help            show this help message and exit
     -os [OS [OS ...]]     operating system(s) (ex. windows linux mac)
     -lang [LANG [LANG ...]]  game language(s) (ex. en fr de)
-    -skipknown            only update new games in your library (not with -id)
-    -id <title>           specify the game to update by 'title' from the manifest (not with -skipknown)
+    -skipknown            only update new games in your library
+    -skipknown            only update games with the update tag in your library
+    -id <title>           specify the game to update by 'title' from the manifest
                           <title> can be found in the !info.txt of the game directory
 
 --
