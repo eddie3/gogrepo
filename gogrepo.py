@@ -380,6 +380,18 @@ def process_argv(argv):
                 error('error: specified os "%s" is not one of the valid os types %s' % (os_type, VALID_OS_TYPES))
                 raise SystemExit(1)
 
+        if args.skipknown and args.updateonly:
+                error('error: skipknown, updateonly and id are mutually exclusive')
+                raise SystemExit(1)
+
+        if args.skipknown and args.id:
+                error('error: skipknown, updateonly and id are mutually exclusive')
+                raise SystemExit(1)
+                
+        if args.updateonly and args.id:
+                error('error: skipknown, updateonly and id are mutually exclusive')
+                raise SystemExit(1)
+
     return args
 
 
