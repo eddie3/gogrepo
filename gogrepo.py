@@ -229,6 +229,26 @@ def test_zipfile(filename):
     return False
 
 
+def item_fill(item, gamesdb):
+    for game in sorted(gamesdb, key=lambda g: g.title):
+        if item.id == game.id:
+            item.bg_url = game.bg_url
+            item.serial = game.serial
+            item.forum_url = game.forum_url
+            item.changelog = game.changelog
+            item.release_timestamp = game.release_timestamp
+            item.downloads = game.downloads
+            item.extras = game.extras
+    return item
+
+
+def item_checkdb(search, gamesdb):
+    for item in gamesdb:
+        if search in item.values():
+            return True
+    return False
+
+
 def fetch_file_info(d, fetch_md5):
     # fetch file name/size
     with request(d.href, byte_range=(0, 0)) as page:
@@ -494,56 +514,28 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     print_padding = len(str(items_count))
     info('found %d games !!%s' % (items_count, '!'*(items_count/100)))  # teehee
     i = 0
-    found = False
+
     for item in sorted(items.values(), key=lambda item: item.title):
+
         if skipknown:
-            for game in sorted(gamesdb, key=lambda g: g.title):
-                if item.title == game.title:
-                    found = True
-                    item.bg_url = game.bg_url
-                    item.serial = game.serial
-                    item.forum_url = game.forum_url
-                    item.changelog = game.changelog
-                    item.release_timestamp = game.release_timestamp
-                    item.downloads = game.downloads
-                    item.extras = game.extras
-                    break
-                else:
-                    found = False
-                    continue
-            if found:
+            if item_checkdb(item.id, gamesdb):
+                item_fill(item, gamesdb)
                 continue
 
         if updateonly:
             if not item.has_updates:
-                for game in sorted(gamesdb, key=lambda g: g.title):
-                    if item.title == game.title:
-                        item.bg_url = game.bg_url
-                        item.serial = game.serial
-                        item.forum_url = game.forum_url
-                        item.changelog = game.changelog
-                        item.release_timestamp = game.release_timestamp
-                        item.downloads = game.downloads
-                        item.extras = game.extras
-                        break
-                    else:
-                        continue
+                if item_checkdb(item.id, gamesdb):
+                    item_fill(item, gamesdb)
+                else:
+                    items.pop(item.id)
                 continue
 
         if id:
             if item.title != id:
-                for game in sorted(gamesdb, key=lambda g: g.title):
-                    if item.title == game.title:
-                        item.bg_url = game.bg_url
-                        item.serial = game.serial
-                        item.forum_url = game.forum_url
-                        item.changelog = game.changelog
-                        item.release_timestamp = game.release_timestamp
-                        item.downloads = game.downloads
-                        item.extras = game.extras
-                        break
-                    else:
-                        continue
+                if item_checkdb(item.id, gamesdb):
+                    item_fill(item, gamesdb)
+                else:
+                    items.pop(item.id)
                 continue
 
         api_url  = GOG_ACCOUNT_URL
