@@ -229,6 +229,26 @@ def test_zipfile(filename):
     return False
 
 
+def item_fill(item, gamesdb):
+    for game in sorted(gamesdb, key=lambda g: g.title):
+        if item.id == game.id:
+            item.bg_url = game.bg_url
+            item.serial = game.serial
+            item.forum_url = game.forum_url
+            item.changelog = game.changelog
+            item.release_timestamp = game.release_timestamp
+            item.downloads = game.downloads
+            item.extras = game.extras
+    return item
+
+
+def item_checkdb(search, gamesdb):
+    for item in gamesdb:
+        if search in item.values():
+            return True
+    return False
+
+
 def fetch_file_info(d, fetch_md5):
     # fetch file name/size
     with request(d.href, byte_range=(0, 0)) as page:
@@ -334,6 +354,7 @@ def process_argv(argv):
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
     g1.add_argument('-skipknown', action='store_true', help='games already known are not updated')
+    g1.add_argument('-updateonly', action='store_true', help='only games with the update tag')
     g1.add_argument('-id', action='store', help='id of the game in the manifest to update')
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
@@ -377,6 +398,18 @@ def process_argv(argv):
         for os_type in args.os:  # validate the os type
             if os_type not in VALID_OS_TYPES:
                 error('error: specified os "%s" is not one of the valid os types %s' % (os_type, VALID_OS_TYPES))
+                raise SystemExit(1)
+
+        if args.skipknown and args.updateonly:
+                error('error: skipknown, updateonly and id are mutually exclusive')
+                raise SystemExit(1)
+
+        if args.skipknown and args.id:
+                error('error: skipknown, updateonly and id are mutually exclusive')
+                raise SystemExit(1)
+                
+        if args.updateonly and args.id:
+                error('error: skipknown, updateonly and id are mutually exclusive')
                 raise SystemExit(1)
 
     return args
@@ -433,7 +466,7 @@ def cmd_login(user, passwd):
     error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list, skipknown, id):
+def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     media_type = GOG_MEDIA_TYPE_GAME
     items = {}
     i = 0
@@ -481,42 +514,30 @@ def cmd_update(os_list, lang_list, skipknown, id):
     print_padding = len(str(items_count))
     info('found %d games !!%s' % (items_count, '!'*(items_count/100)))  # teehee
     i = 0
-    found = False
+
     for item in sorted(items.values(), key=lambda item: item.title):
+
         if skipknown:
-            for game in sorted(gamesdb, key=lambda g: g.title):
-                if item.title == game.title:
-                    found = True
-                    item.bg_url = game.bg_url
-                    item.serial = game.serial
-                    item.forum_url = game.forum_url
-                    item.changelog = game.changelog
-                    item.release_timestamp = game.release_timestamp
-                    item.downloads = game.downloads
-                    item.extras = game.extras
-                    break
+            if item_checkdb(item.id, gamesdb):
+                item_fill(item, gamesdb)
+                continue
+
+        if updateonly:
+            if not item.has_updates:
+                if item_checkdb(item.id, gamesdb):
+                    item_fill(item, gamesdb)
                 else:
-                    found = False
-                    continue
-            if found:
+                    items.pop(item.id)
                 continue
 
         if id:
             if item.title != id:
-                for game in sorted(gamesdb, key=lambda g: g.title):
-                    if item.title == game.title:
-                        item.bg_url = game.bg_url
-                        item.serial = game.serial
-                        item.forum_url = game.forum_url
-                        item.changelog = game.changelog
-                        item.release_timestamp = game.release_timestamp
-                        item.downloads = game.downloads
-                        item.extras = game.extras
-                        break
-                    else:
-                        continue
+                if item_checkdb(item.id, gamesdb):
+                    item_fill(item, gamesdb)
+                else:
+                    items.pop(item.id)
                 continue
-    
+
         api_url  = GOG_ACCOUNT_URL
         api_url += "/gameDetails/%d.json" % item.id
 
@@ -598,6 +619,7 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
     load_cookies()
 
     items = load_manifest()
+    work_dict = dict()
     
     if id:
         for item in sorted(items, key=lambda g: g.title):
@@ -674,7 +696,10 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
             info('     download   %s' % game_item.name)
             sizes[dest_file] = game_item.size
 
-            work.put((game_item.href, game_item.size, 0, game_item.size-1, dest_file))
+            work_dict[dest_file] = (game_item.href, game_item.size, 0, game_item.size-1, dest_file)
+    
+    for work_item in work_dict:
+        work.put(work_dict[work_item])
 
     if dryrun:
         return  # bail, as below just kicks off the actual downloading
@@ -873,7 +898,7 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        cmd_update(args.os, args.lang, args.skipknown, args.id)
+        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.id)
     elif args.cmd == 'download':
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
