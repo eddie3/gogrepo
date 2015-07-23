@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+from __future__ import division
+
 __appname__ = 'gogrepo.py'
 __author__ = 'eddie3'
 __version__ = '0.3a'
@@ -9,16 +12,10 @@ __url__ = 'https://github.com/eddie3/gogrepo'
 import os
 import sys
 import threading
-import Queue
 import logging
 import contextlib
-import cookielib
-import urllib
-import urllib2
-import urlparse
 import json
 import html5lib
-import httplib
 import pprint
 import time
 import zipfile
@@ -30,6 +27,27 @@ import datetime
 import shutil
 import socket
 import xml.etree.ElementTree
+
+# python 2 / 3 imports
+try:
+    # python 2
+    from Queue import Queue
+    import cookielib as cookiejar
+    from httplib import BadStatusLine
+    from urlparse import urlparse
+    from urllib import urlencode
+    from urllib2 import HTTPError, URLError, HTTPCookieProcessor, build_opener, Request
+except ImportError:
+    # python 3
+    from queue import Queue
+    import http.cookiejar as cookiejar
+    from http.client import BadStatusLine
+    from urllib.parse import urlparse, urlencode
+    from urllib.request import HTTPCookieProcessor, HTTPError, URLError, build_opener, Request
+
+# python 2 / 3 renames
+try: input = raw_input
+except NameError: pass
 
 # optional imports
 try:
@@ -60,9 +78,9 @@ SERIAL_FILENAME = r'!serial.txt'
 INFO_FILENAME = r'!info.txt'
 
 # global web utilities
-cookiejar = cookielib.LWPCookieJar(COOKIES_FILENAME)
-cookieproc = urllib2.HTTPCookieProcessor(cookiejar)
-opener = urllib2.build_opener(cookieproc)
+cookiejar = cookiejar.LWPCookieJar(COOKIES_FILENAME)
+cookieproc = HTTPCookieProcessor(cookiejar)
+opener = build_opener(cookieproc)
 treebuilder = html5lib.treebuilders.getTreeBuilder('etree')
 parser = html5lib.HTMLParser(tree=treebuilder, namespaceHTMLElements=False)
 
@@ -119,7 +137,7 @@ LANG_TABLE = {'en': u'English',   # English
               }
 
 VALID_OS_TYPES = ['windows', 'linux', 'mac']
-VALID_LANG_TYPES = LANG_TABLE.keys()
+VALID_LANG_TYPES = list(LANG_TABLE.keys())
 
 
 def request(url, args=None, byte_range=None, retries=HTTP_RETRY_COUNT, delay=HTTP_FETCH_DELAY):
@@ -130,15 +148,16 @@ def request(url, args=None, byte_range=None, retries=HTTP_RETRY_COUNT, delay=HTT
 
     try:
         if args is not None:
-            enc_args = urllib.urlencode(args)
+            enc_args = urlencode(args)
+            enc_args = enc_args.encode('ascii') # needed for Python 3
         else:
             enc_args = None
-        req = urllib2.Request(url, data=enc_args)
+        req = Request(url, data=enc_args)
         if byte_range is not None:
             req.add_header('Range', 'bytes=%d-%d' % byte_range)
         page = opener.open(req)
-    except (urllib2.HTTPError, urllib2.URLError, socket.error, httplib.BadStatusLine) as e:
-        if isinstance(e, urllib2.HTTPError):
+    except (HTTPError, URLError, socket.error, BadStatusLine) as e:
+        if isinstance(e, HTTPError):
             if e.code in HTTP_PERM_ERRORCODES:  # do not retry these HTTP codes
                 warn('request failed: %s.  will not retry.', e)
                 raise
@@ -147,10 +166,9 @@ def request(url, args=None, byte_range=None, retries=HTTP_RETRY_COUNT, delay=HTT
         else:
             raise
 
-    if _retry:
-        warn('request failed: %s (%d retries left) -- will retry in %ds...' %
-             (e, retries, HTTP_RETRY_DELAY))
-        return request(url=url, args=args, byte_range=byte_range, retries=retries-1, delay=HTTP_RETRY_DELAY)
+        if _retry:
+            warn('request failed: %s (%d retries left) -- will retry in %ds...' % (e, retries, HTTP_RETRY_DELAY))
+            return request(url=url, args=args, byte_range=byte_range, retries=retries-1, delay=HTTP_RETRY_DELAY)
 
     return contextlib.closing(page)
 
@@ -193,15 +211,15 @@ def load_manifest():
 def save_manifest(items):
     info('saving manifest to %s...' % MANIFEST_FILENAME)
     with open(MANIFEST_FILENAME, 'w') as w:
-        print >>w, '# %d games' % len(items)
-        pprint.pprint(items.values(), width=123, stream=w)
+        print('# %d games' % len(items), file=w)
+        pprint.pprint(list(items.values()), width=123, stream=w)
 
 
 def open_notrunc(name, bufsize=4*1024):
     flags = os.O_WRONLY | os.O_CREAT
     if hasattr(os, "O_BINARY"):
         flags |= os.O_BINARY  # windows
-    fd = os.open(name, flags, 0666)
+    fd = os.open(name, flags, 0o666)
     return os.fdopen(fd, 'wb', bufsize)
 
 
@@ -244,7 +262,7 @@ def item_fill(item, gamesdb):
 
 def item_checkdb(search, gamesdb):
     for item in gamesdb:
-        if search in item.values():
+        if search in list(item.values()):
             return True
     return False
 
@@ -252,7 +270,7 @@ def item_checkdb(search, gamesdb):
 def fetch_file_info(d, fetch_md5):
     # fetch file name/size
     with request(d.href, byte_range=(0, 0)) as page:
-        d.name = urlparse.urlparse(page.geturl()).path.split('/')[-1]
+        d.name = urlparse(page.geturl()).path.split('/')[-1]
         d.size = int(page.headers['Content-Range'].split('/')[-1])
 
         # fetch file md5
@@ -263,7 +281,7 @@ def fetch_file_info(d, fetch_md5):
                     with request(tmp_md5_url) as page:
                         shelf_etree = xml.etree.ElementTree.parse(page).getroot()
                         d.md5 = shelf_etree.attrib['md5']
-                except urllib2.HTTPError, e:
+                except HTTPError as e:
                     if e.code == 404:
                         warn("no md5 data found for %s" % d.name)
                     else:
@@ -299,7 +317,7 @@ def filter_downloads(out_list, downloads_list, lang_list, os_list):
                                      )
                         try:
                             fetch_file_info(d, True)
-                        except urllib2.HTTPError:
+                        except HTTPError:
                             warn("failed to fetch %s" % d.href)
                         filtered_downloads.append(d)
 
@@ -323,7 +341,7 @@ def filter_extras(out_list, extras_list):
                      )
         try:
             fetch_file_info(d, False)
-        except urllib2.HTTPError:
+        except HTTPError:
             warn("failed to fetch %s" % d.href)
         filtered_extras.append(d)
 
@@ -424,7 +442,7 @@ def cmd_login(user, passwd):
     If passwd is None, the user will be prompted for one in the console.
     """
     if user is None:
-        user = raw_input("enter username: ")
+        user = input("enter username: ")
     if passwd is None:
         passwd = getpass.getpass("enter password: ")
 
@@ -488,7 +506,8 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
         with request(api_url, args={'mediaType': media_type,
                                     'sortBy': 'title',  # sort order
                                     'page': str(i)}, delay=0) as data_request:
-            json_data = json.load(data_request)
+            reader = codecs.getreader("utf-8")
+            json_data = json.load(reader(data_request)) # reader needed for Python 3
 
             # Parse out the interesting fields and add to items dict
             for item_json_data in json_data['products']:
@@ -509,13 +528,15 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
             if i >= json_data['totalPages']:
                 break
 
+    # items = {k: v for k, v in items.items() if v['id'] < 5} # for testing purposes, restricts the number of found items
+
     # Fetch item details
     items_count = len(items)
     print_padding = len(str(items_count))
-    info('found %d games !!%s' % (items_count, '!'*(items_count/100)))  # teehee
+    info('found %d games !!%s' % (items_count, '!'*int(items_count/100)))  # teehee
     i = 0
 
-    for item in sorted(items.values(), key=lambda item: item.title):
+    for item in sorted(list(items.values()), key=lambda item: item.title):
 
         if skipknown:
             if item_checkdb(item.id, gamesdb):
@@ -546,7 +567,8 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
 
         try:
             with request(api_url) as data_request:
-                item_json_data = json.load(data_request)
+                reader = codecs.getreader("utf-8")
+                item_json_data = json.load(reader(data_request)) # reader needed for Python 3
 
                 item.bg_url = item_json_data['backgroundImage']
                 item.serial = item_json_data['cdKey']
@@ -556,7 +578,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 item.downloads = []
                 item.extras = []
 
-                # prase json data for downloads/extras/dlcs
+                # parse json data for downloads/extras/dlcs
                 filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
                 filter_extras(item.extras, item_json_data['extras'])
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
@@ -614,7 +636,7 @@ def cmd_import(src_dir, dest_dir):
 
 def cmd_download(savedir, skipextras, skipgames, dryrun, id):
     sizes, rates, errors = {}, {}, {}
-    work = Queue.Queue()  # build a list of work items
+    work = Queue()  # build a list of work items
 
     load_cookies()
 
@@ -749,11 +771,11 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
                                 assert out.tell() == start
                                 ioloop(tid, path, page, out)
                                 assert out.tell() == end + 1
-                    except urllib2.HTTPError as e:
+                    except HTTPError as e:
                         error("failed to download %s, byte_range=%s" % (os.path.basename(path), str(se)))
-            except IOError, e:
+            except IOError as e:
                 with lock:
-                    print >>sys.stderr, '!', path
+                    print('!', path, file=sys.stderr)
                     errors.setdefault(path, []).append(e)
             work.task_done()
 
@@ -766,7 +788,7 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
                 for tid, (sz, t) in flowrates:
                     szs, ts = flows.get(tid, (0, 0))
                     flows[tid] = sz + szs, t + ts
-                bps = sum(szs/ts for szs, ts in flows.values() if ts > 0)
+                bps = sum(szs/ts for szs, ts in list(flows.values()) if ts > 0)
                 info('%10s %8.1fMB/s %2dx  %s' % \
                     (megs(sizes[path]), bps / 1024.0**2, len(flows), "%s/%s" % (os.path.basename(os.path.split(path)[0]), os.path.split(path)[1])))
             if len(rates) != 0:  # only update if there's change
