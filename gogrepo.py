@@ -371,9 +371,10 @@ def process_argv(argv):
     g1 = sp1.add_parser('update', help='Update locally saved game manifest from GOG server')
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
-    g1.add_argument('-skipknown', action='store_true', help='games already known are not updated')
-    g1.add_argument('-updateonly', action='store_true', help='only games with the update tag')
-    g1.add_argument('-id', action='store', help='id of the game in the manifest to update')
+    g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g2.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
+    g2.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
+    g2.add_argument('-id', action='store', help='id/dirname of a specific game to update')
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
@@ -416,18 +417,6 @@ def process_argv(argv):
         for os_type in args.os:  # validate the os type
             if os_type not in VALID_OS_TYPES:
                 error('error: specified os "%s" is not one of the valid os types %s' % (os_type, VALID_OS_TYPES))
-                raise SystemExit(1)
-
-        if args.skipknown and args.updateonly:
-                error('error: skipknown, updateonly and id are mutually exclusive')
-                raise SystemExit(1)
-
-        if args.skipknown and args.id:
-                error('error: skipknown, updateonly and id are mutually exclusive')
-                raise SystemExit(1)
-                
-        if args.updateonly and args.id:
-                error('error: skipknown, updateonly and id are mutually exclusive')
                 raise SystemExit(1)
 
     return args
@@ -507,7 +496,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                                     'sortBy': 'title',  # sort order
                                     'page': str(i)}, delay=0) as data_request:
             reader = codecs.getreader("utf-8")
-            json_data = json.load(reader(data_request)) # reader needed for Python 3
+            json_data = json.load(reader(data_request))
 
             # Parse out the interesting fields and add to items dict
             for item_json_data in json_data['products']:
@@ -568,7 +557,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
         try:
             with request(api_url) as data_request:
                 reader = codecs.getreader("utf-8")
-                item_json_data = json.load(reader(data_request)) # reader needed for Python 3
+                item_json_data = json.load(reader(data_request))
 
                 item.bg_url = item_json_data['backgroundImage']
                 item.serial = item_json_data['cdKey']
