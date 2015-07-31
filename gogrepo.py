@@ -944,10 +944,11 @@ def main(args):
 if __name__ == "__main__":
     try:
         main(process_argv(sys.argv))
+        info('exiting...')
     except KeyboardInterrupt:
+        info('exiting...')
         sys.exit(1)
     except SystemExit:
-        info('exiting...')
         raise
     except:
         log_exception('fatal...')
