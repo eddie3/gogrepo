@@ -187,15 +187,6 @@ class AttrDict(dict):
         self[key] = val
 
 
-def load_attrdicts(fn):
-    try:
-        with open(fn, 'rU') as r:
-            ad = r.read().replace('{', 'AttrDict(**{').replace('}', '})')
-        return eval(ad)
-    except IOError:
-        return AttrDict()
-
-
 def load_cookies():
     try:
         cookiejar.load()
@@ -203,16 +194,21 @@ def load_cookies():
         pass
 
 
-def load_manifest():
+def load_manifest(filepath=MANIFEST_FILENAME):
     info('loading local manifest...')
-    return load_attrdicts(MANIFEST_FILENAME)
+    try:
+        with open(filepath, 'rU') as r:
+            ad = r.read().replace('{', 'AttrDict(**{').replace('}', '})')
+        return eval(ad)
+    except IOError:
+        return AttrDict()
 
 
 def save_manifest(items):
-    info('saving manifest to %s...' % MANIFEST_FILENAME)
+    info('saving manifest...')
     with open(MANIFEST_FILENAME, 'w') as w:
-        print('# %d games' % len(items), file=w)
-        pprint.pprint(list(items.values()), width=123, stream=w)
+        print('# {} games'.format(len(items)), file=w)
+        pprint.pprint(items, width=123, stream=w)
 
 
 def open_notrunc(name, bufsize=4*1024):
@@ -247,24 +243,11 @@ def test_zipfile(filename):
     return False
 
 
-def item_fill(item, gamesdb):
-    for game in sorted(gamesdb, key=lambda g: g.title):
-        if item.id == game.id:
-            item.bg_url = game.bg_url
-            item.serial = game.serial
-            item.forum_url = game.forum_url
-            item.changelog = game.changelog
-            item.release_timestamp = game.release_timestamp
-            item.downloads = game.downloads
-            item.extras = game.extras
-    return item
-
-
-def item_checkdb(search, gamesdb):
-    for item in gamesdb:
-        if search in list(item.values()):
-            return True
-    return False
+def item_checkdb(search_id, gamesdb):
+    for i in range(len(gamesdb)):
+        if search_id == gamesdb[i].id:
+            return i
+    return None
 
 
 def fetch_file_info(d, fetch_md5):
@@ -475,18 +458,30 @@ def cmd_login(user, passwd):
 
 def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     media_type = GOG_MEDIA_TYPE_GAME
-    items = {}
+    items = []
+    item_count = 0
+    known_ids = []
     i = 0
 
-    gamesdb = load_manifest()
+    # Don't bother loading manifest from disk if we're doing a full update
+    if id or skipknown or updateonly:
+        gamesdb = load_manifest()
+    else:
+        gamesdb = []
 
     load_cookies()
 
     api_url  = GOG_ACCOUNT_URL
     api_url += "/getFilteredProducts"
 
+    # Make convenient list of known ids
+    if skipknown:
+        for item in gamesdb:
+            known_ids.append(item.id)
+
     # Fetch shelf data
-    while True:
+    done = False
+    while not done:
         i += 1  # starts at page 1
         if i == 1:
             info('fetching game product data (page %d)...' % i)
@@ -500,56 +495,58 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
 
             # Parse out the interesting fields and add to items dict
             for item_json_data in json_data['products']:
+                item_count += 1
+
                 item = AttrDict()
                 item.id = item_json_data['id']
                 item.title = item_json_data['slug']
                 item.long_title = item_json_data['title']
                 item.genre = item_json_data['category']
-                item.dlc_count = item_json_data['dlcCount']
                 item.image_url = item_json_data['image']
                 item.store_url = item_json_data['url']
                 item.media_type = media_type
                 item.rating = item_json_data['rating']
                 item.has_updates = bool(item_json_data['updates'])
 
-                items[item.id] = item
+                if id:
+                    if item.title == id or str(item.id) == id:  # support by game title or gog id
+                        info('found "{}" in product data!'.format(item.title))
+                        items.append(item)
+                        done = True
+                elif updateonly:
+                    if item.has_updates:
+                        items.append(item)
+                elif skipknown:
+                    if item.id not in known_ids:
+                        items.append(item)
+                else:
+                    items.append(item)
 
             if i >= json_data['totalPages']:
-                break
+                done = True
 
-    # items = {k: v for k, v in items.items() if v['id'] < 5} # for testing purposes, restricts the number of found items
+    # bail if there's nothing to do
+    if len(items) == 0:
+        if id:
+            warn('game id "{}" was not found in your product data'.format(id))
+        elif updateonly:
+            warn('no new game updates found.')
+        elif skipknown:
+            warn('no new games found.')
+        else:
+            warn('nothing to do')
+        return
 
-    # Fetch item details
     items_count = len(items)
     print_padding = len(str(items_count))
-    info('found %d games !!%s' % (items_count, '!'*int(items_count/100)))  # teehee
+    if not id and not updateonly and not skipknown:
+        info('found %d games !!%s' % (items_count, '!'*int(items_count/100)))  # teehee
+
+    # fetch item details
     i = 0
-
-    for item in sorted(list(items.values()), key=lambda item: item.title):
-
-        if skipknown:
-            if item_checkdb(item.id, gamesdb):
-                item_fill(item, gamesdb)
-                continue
-
-        if updateonly:
-            if not item.has_updates:
-                if item_checkdb(item.id, gamesdb):
-                    item_fill(item, gamesdb)
-                else:
-                    items.pop(item.id)
-                continue
-
-        if id:
-            if item.title != id:
-                if item_checkdb(item.id, gamesdb):
-                    item_fill(item, gamesdb)
-                else:
-                    items.pop(item.id)
-                continue
-
+    for item in sorted(items, key=lambda item: item.title):
         api_url  = GOG_ACCOUNT_URL
-        api_url += "/gameDetails/%d.json" % item.id
+        api_url += "/gameDetails/{}.json".format(item.id)
 
         i += 1
         info("(%*d / %d) fetching game details for %s..." % (print_padding, i, items_count, item.title))
@@ -572,13 +569,18 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 filter_extras(item.extras, item_json_data['extras'])
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
 
+                # update gamesdb with new item
+                item_idx = item_checkdb(item.id, gamesdb)
+                if item_idx is not None:
+                    gamesdb[item_idx] = item
+                else:
+                    gamesdb.append(item)
+
         except Exception:
             log_exception('error')
 
     # save the manifest to disk
-    save_manifest(items)
-
-    return items
+    save_manifest(gamesdb)
 
 
 def cmd_import(src_dir, dest_dir):
