@@ -139,6 +139,9 @@ LANG_TABLE = {'en': u'English',   # English
 VALID_OS_TYPES = ['windows', 'linux', 'mac']
 VALID_LANG_TYPES = list(LANG_TABLE.keys())
 
+ORPHAN_DIR_NAME = '!orphaned'
+ORPHAN_DIR_EXCLUDE_LIST = [ORPHAN_DIR_NAME, '!misc']
+ORPHAN_FILE_EXCLUDE_LIST = [INFO_FILENAME, SERIAL_FILENAME]
 
 def request(url, args=None, byte_range=None, retries=HTTP_RETRY_COUNT, delay=HTTP_FETCH_DELAY):
     """Performs web request to url with optional retries, delay, and byte range.
@@ -241,6 +244,26 @@ def test_zipfile(filename):
         return False
 
     return False
+
+
+def pretty_size(n):
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if n < 1024 or unit == 'TB':
+            break
+        n = n / 1024  # start at KB
+
+    if unit == 'B':
+        return "{0}{1}".format(n, unit)
+    else:
+        return "{0:.2f}{1}".format(n, unit)
+
+
+def get_total_size(dir):
+    total = 0
+    for (root, dirnames, filenames) in os.walk(dir):
+        for f in filenames:
+            total += os.path.getsize(os.path.join(root, f))
+    return total
 
 
 def item_checkdb(search_id, gamesdb):
@@ -382,6 +405,10 @@ def process_argv(argv):
     g1.add_argument('-skipsize', action='store_true', help='do not perform size check')
     g1.add_argument('-skipzip', action='store_true', help='do not perform zip integrity check')
     g1.add_argument('-delete', action='store_true', help='delete any files which fail integrity test')
+
+    g1 = sp1.add_parser('clean', help='Clean your games directory of files not known by manifest')
+    g1.add_argument('cleandir', action='store', help='root directory containing gog games to be cleaned')
+    g1.add_argument('-dryrun', action='store_true', help='do not move files, only display what would be cleaned')
 
     g1 = p1.add_argument_group('other')
     g1.add_argument('-h', '--help', action='help', help='show help message and exit')
@@ -904,6 +931,61 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail):
         info('deleted items....... %d' % del_file_cnt)
 
 
+def cmd_clean(cleandir, dryrun):
+    items = load_manifest()
+    items_by_title = {}
+    total_size = 0  # in bytes
+    have_cleaned = False
+
+    # make convenient dict with title/dirname as key
+    for item in items:
+        items_by_title[item.title] = item
+
+    # create orphan root dir
+    orphan_root_dir = os.path.join(cleandir, ORPHAN_DIR_NAME)
+    if not os.path.isdir(orphan_root_dir):
+        if not dryrun:
+            os.makedirs(orphan_root_dir)
+
+    info("scanning local directories within '{}'...".format(cleandir))
+    for cur_dir in sorted(os.listdir(cleandir)):
+        cur_fulldir = os.path.join(cleandir, cur_dir)
+        if os.path.isdir(cur_fulldir) and cur_dir not in ORPHAN_DIR_EXCLUDE_LIST:
+            if cur_dir not in items_by_title:
+                info("orphaning dir  '{}'".format(cur_dir))
+                have_cleaned = True
+                total_size += get_total_size(cur_fulldir)
+                if not dryrun:
+                    shutil.move(cur_fulldir, orphan_root_dir)
+            else:
+                # dir is valid game folder, check its files
+                expected_filenames = []
+                for game_item in items_by_title[cur_dir].downloads + items_by_title[cur_dir].extras:
+                    expected_filenames.append(game_item.name)
+                for cur_dir_file in os.listdir(cur_fulldir):
+                    if os.path.isdir(os.path.join(cleandir, cur_dir, cur_dir_file)):
+                        continue  # leave subdirs alone
+                    if cur_dir_file not in expected_filenames and cur_dir_file not in ORPHAN_FILE_EXCLUDE_LIST:
+                        info("orphaning file '{}'".format(os.path.join(cur_dir, cur_dir_file)))
+                        have_cleaned = True
+                        dest_dir = os.path.join(orphan_root_dir, cur_dir)
+                        if not os.path.isdir(dest_dir):
+                            if not dryrun:
+                                os.makedirs(dest_dir)
+                        file_to_move = os.path.join(cleandir, cur_dir, cur_dir_file)
+                        total_size += os.path.getsize(file_to_move)
+                        if not dryrun:
+                            shutil.move(file_to_move, dest_dir)
+
+    if have_cleaned:
+        info('')
+        info('total size of newly orphaned files: {}'.format(pretty_size(total_size)))
+        if not dryrun:
+            info('orphaned items moved to: {}'.format(orphan_root_dir))
+    else:
+        info('nothing to clean. nice and tidy!')
+
+
 def main(args):
     stime = datetime.datetime.now()
 
@@ -926,6 +1008,8 @@ def main(args):
         cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete)
     elif args.cmd == 'backup':
         cmd_backup(args.src_dir, args.dest_dir)
+    elif args.cmd == 'clean':
+        cmd_clean(args.cleandir, args.dryrun)
 
     etime = datetime.datetime.now()
     info('--')
