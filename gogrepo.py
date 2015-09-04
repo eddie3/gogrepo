@@ -273,6 +273,27 @@ def item_checkdb(search_id, gamesdb):
     return None
 
 
+def handle_game_updates(olditem, newitem):
+    if newitem.has_updates:
+        info('  -> gog flagged this game as updated')
+
+    if olditem.title != newitem.title:
+        info('  -> title has changed "{}" -> "{}"'.format(olditem.title, newitem.title))
+        # TODO: rename the game directory
+
+    if olditem.long_title != newitem.long_title:
+        try:
+            info('  -> long title has change "{}" -> "{}"'.format(olditem.long_title, newitem.long_title))
+        except UnicodeEncodeError:
+            pass
+
+    if olditem.changelog != newitem.changelog and newitem.changelog not in [None, '']:
+        info('  -> changelog was updated')
+
+    if olditem.serial != newitem.serial:
+        info('  -> serial key has changed')
+
+
 def fetch_file_info(d, fetch_md5):
     # fetch file name/size
     with request(d.href, byte_range=(0, 0)) as page:
@@ -293,6 +314,7 @@ def fetch_file_info(d, fetch_md5):
                     else:
                         raise
 
+
 def filter_downloads(out_list, downloads_list, lang_list, os_list):
     """filters any downloads information against matching lang and os, translates
     them, and extends them into out_list
@@ -304,7 +326,7 @@ def filter_downloads(out_list, downloads_list, lang_list, os_list):
     valid_langs = []
     for lang in lang_list:
         valid_langs.append(LANG_TABLE[lang])
-        
+
     # check if lang/os combo passes the specified filter
     for lang in downloads_dict:
         if lang in valid_langs:
@@ -490,11 +512,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     known_ids = []
     i = 0
 
-    # Don't bother loading manifest from disk if we're doing a full update
-    if id or skipknown or updateonly:
-        gamesdb = load_manifest()
-    else:
-        gamesdb = []
+    gamesdb = load_manifest()
 
     load_cookies()
 
@@ -599,6 +617,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 # update gamesdb with new item
                 item_idx = item_checkdb(item.id, gamesdb)
                 if item_idx is not None:
+                    handle_game_updates(gamesdb[item_idx], item)
                     gamesdb[item_idx] = item
                 else:
                     gamesdb.append(item)
@@ -660,7 +679,7 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
 
     items = load_manifest()
     work_dict = dict()
-    
+
     if id:
         for item in sorted(items, key=lambda g: g.title):
             if item.title == id:
@@ -737,7 +756,7 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
             sizes[dest_file] = game_item.size
 
             work_dict[dest_file] = (game_item.href, game_item.size, 0, game_item.size-1, dest_file)
-    
+
     for work_item in work_dict:
         work.put(work_dict[work_item])
 
