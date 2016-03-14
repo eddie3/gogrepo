@@ -423,6 +423,7 @@ def process_argv(argv):
 
     g1 = sp1.add_parser('verify', help='Scan your downloaded GOG files and verify their size, MD5, and zip integrity')
     g1.add_argument('gamedir', action='store', help='directory containing games to verify', nargs='?', default='.')
+    g1.add_argument('-id', action='store', help='id of a specific game to verify')
     g1.add_argument('-skipmd5', action='store_true', help='do not perform MD5 check')
     g1.add_argument('-skipsize', action='store_true', help='do not perform size check')
     g1.add_argument('-skipzip', action='store_true', help='do not perform zip integrity check')
@@ -885,7 +886,7 @@ def cmd_backup(src_dir, dest_dir):
                     shutil.copy(os.path.join(src_game_dir, extra_file), dest_game_dir)
 
 
-def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail):
+def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, id):
     """Verifies all game files match manifest with any available md5 & file size info
     """
     item_count = 0
@@ -897,8 +898,21 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail):
 
     items = load_manifest()
 
-    info('verifying all known files in the manifest')
-    for game in sorted(items, key=lambda g: g.title):
+    # filter items based on id
+    if id:
+        games_to_check = []
+        for game in sorted(items, key=lambda g: g.title):
+            if game.title == id or str(game.id) == id:
+                games_to_check.append(game)
+        if len(games_to_check) == 0:
+            warn('no known files with id "{}"'.format(id))
+            return
+        info('verifying known files with id "{}"'.format(id))
+    else:
+        info('verifying all known files in the manifest')
+        games_to_check = sorted(items, key=lambda g: g.title)
+
+    for game in games_to_check:
         for itm in game.downloads + game.extras:
             if itm.name is None:
                 warn('no known filename for "%s (%s)"' % (game.title, itm.desc))
@@ -937,7 +951,7 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail):
 
     info('')
     info('--totals------------')
-    info('items in manifest... %d' % item_count)
+    info('known items......... %d' % item_count)
     info('have items.......... %d' % (item_count - missing_cnt - del_file_cnt))
     info('missing items....... %d' % (missing_cnt + del_file_cnt))
     if check_md5:
@@ -1024,7 +1038,7 @@ def main(args):
         check_md5 = not args.skipmd5
         check_filesize = not args.skipsize
         check_zips = not args.skipzip
-        cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete)
+        cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete, args.id)
     elif args.cmd == 'backup':
         cmd_backup(args.src_dir, args.dest_dir)
     elif args.cmd == 'clean':
