@@ -204,7 +204,7 @@ def load_manifest(filepath=MANIFEST_FILENAME):
             ad = r.read().replace('{', 'AttrDict(**{').replace('}', '})')
         return eval(ad)
     except IOError:
-        return AttrDict()
+        return []
 
 
 def save_manifest(items):
