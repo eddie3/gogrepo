@@ -460,50 +460,83 @@ def process_argv(argv):
 # --------
 def cmd_login(user, passwd):
     """Attempts to log into GOG and saves the resulting cookiejar to disk.
-
-    If passwd is None, the user will be prompted for one in the console.
     """
-    if user is None:
-        user = input("enter username: ")
-    if passwd is None:
-        passwd = getpass.getpass("enter password: ")
+    login_data = {'user': user,
+                  'passwd': passwd,
+                  'auth_url': None,
+                  'login_token': None,
+                  'two_step_url': None,
+                  'two_step_token': None,
+                  'two_step_security_code': None,
+                  'login_success': False,
+                  }
 
     cookiejar.clear()  # reset cookiejar
 
-    # get the auth_url
+    # prompt for login/password if needed
+    if login_data['user'] is None:
+        login_data['user'] = input("enter username: ")
+    if login_data['passwd'] is None:
+        login_data['passwd'] = getpass.getpass("enter password: ")
+
     info("attempting gog login as '%s' ..." % user)
-    with request(GOG_HOME_URL, delay=0) as web_data:
-        etree = html5lib.parse(web_data, namespaceHTMLElements=False)
-    for elm in etree.findall('.//script'):
-        if elm.text is not None and 'GalaxyAccounts' in elm.text:
-            auth_url = elm.text.split("'")[1]
-            break
 
-    # request auth_url and find the login_token
-    with request(auth_url, delay=0) as page:
+    # fetch the auth url
+    with request(GOG_HOME_URL, delay=0) as page:
         etree = html5lib.parse(page, namespaceHTMLElements=False)
-
-        for elm in etree.findall('.//input'):
-            if elm.attrib['id'] == 'login__token':
-                login_token = elm.attrib['value']
+        for elm in etree.findall('.//script'):
+            if elm.text is not None and 'GalaxyAccounts' in elm.text:
+                login_data['auth_url'] = elm.text.split("'")[1]
                 break
 
-    # perform the login
-    request(GOG_LOGIN_URL, delay=0, args={'login[username]': user,
-                                          'login[password]': passwd,
-                                          'login[login]': '',
-                                          'login[_token]': login_token})
-
-    # save cookies to disk
-    cookiejar.save()
-
-    # verify login was successful
-    for c in cookiejar:
-        if c.name == 'galaxy-login-al':
-            info('login successful!')
+    # fetch the login token
+    with request(login_data['auth_url'], delay=0) as page:
+        etree = html5lib.parse(page, namespaceHTMLElements=False)
+        # Bail if we find a request for a reCAPTCHA
+        if len(etree.findall('.//div[@class="g-recaptcha"]')) > 0:
+            error("cannot continue, gog is asking for a reCAPTCHA :(  try again in a few minutes.")
             return
+        for elm in etree.findall('.//input'):
+            if elm.attrib['id'] == 'login__token':
+                login_data['login_token'] = elm.attrib['value']
+                break
 
-    error('login failed, verify your username/password and try again.')
+    # perform login and capture two-step token if required
+    with request(GOG_LOGIN_URL, delay=0, args={'login[username]': login_data['user'],
+                                               'login[password]': login_data['passwd'],
+                                               'login[login]': '',
+                                               'login[_token]': login_data['login_token']}) as page:
+        etree = html5lib.parse(page, namespaceHTMLElements=False)
+        if 'two_step' in page.geturl():
+            login_data['two_step_url'] = page.geturl()
+            for elm in etree.findall('.//input'):
+                if elm.attrib['id'] == 'second_step_authentication__token':
+                    login_data['two_step_token'] = elm.attrib['value']
+                    break
+        elif 'on_login_success' in page.geturl():
+            login_data['login_success'] = True
+
+    # perform two-step if needed
+    if login_data['two_step_url'] is not None:
+        login_data['two_step_security_code'] = input("enter two-step security code: ")
+
+        # Send the security code back to GOG
+        with request(login_data['two_step_url'], delay=0,
+                     args={'second_step_authentication[token][letter_1]': login_data['two_step_security_code'][0],
+                           'second_step_authentication[token][letter_2]': login_data['two_step_security_code'][1],
+                           'second_step_authentication[token][letter_3]': login_data['two_step_security_code'][2],
+                           'second_step_authentication[token][letter_4]': login_data['two_step_security_code'][3],
+                           'second_step_authentication[send]': "",
+                           'second_step_authentication[_token]': login_data['two_step_token']}) as page:
+            if 'on_login_success' in page.geturl():
+                login_data['login_success'] = True
+
+    # save cookies on success
+    if login_data['login_success']:
+        info('login successful!')
+        cookiejar.save()
+    else:
+        error('login failed, verify your username/password and try again.')
 
 
 def cmd_update(os_list, lang_list, skipknown, updateonly, id):
