@@ -827,7 +827,7 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
                 with lock:
                     if not os.path.isdir(dest_dir):
                         os.makedirs(dest_dir)
-                    if os.path.getsize(path) > sz:  # if needed, truncate file if ours is larger than expected size
+                    if os.path.exists(path) and os.path.getsize(path) > sz:  # if needed, truncate file if ours is larger than expected size
                         with open_notrunc(path) as f:
                             f.truncate(sz)
                 with open_notrunc(path) as out:
