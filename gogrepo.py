@@ -479,7 +479,7 @@ def cmd_login(user, passwd):
     if login_data['passwd'] is None:
         login_data['passwd'] = getpass.getpass("enter password: ")
 
-    info("attempting gog login as '%s' ..." % user)
+    info("attempting gog login as '{}' ...".format(login_data['user']))
 
     # fetch the auth url
     with request(GOG_HOME_URL, delay=0) as page:
