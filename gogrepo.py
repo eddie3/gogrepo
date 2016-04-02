@@ -675,7 +675,7 @@ def cmd_import(src_dir, dest_dir):
 
     for game in gamesdb:
         for game_item in game.downloads:
-            if game_item.md5 in md5_info:
+            if game_item.md5 is not None:
                 md5_info[game_item.md5] = (game.title, game_item.name)
 
     info("searching for files within '%s'" % src_dir)
