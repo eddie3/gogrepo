@@ -714,6 +714,12 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
     items = load_manifest()
     work_dict = dict()
 
+    # util
+    def megs(b):
+        return '%.1fMB' % (b / float(1024**2))
+    def gigs(b):
+        return '%.2fGB' % (b / float(1024**3))
+
     if id:
         for item in sorted(items, key=lambda g: g.title):
             if item.title == id:
@@ -795,15 +801,10 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
         work.put(work_dict[work_item])
 
     if dryrun:
+        info("{} left to download".format(gigs(sum(sizes.values()))))
         return  # bail, as below just kicks off the actual downloading
 
     info('-'*60)
-
-    # util
-    def megs(b):
-        return '%.1fMB' % (b / float(1024**2))
-    def gigs(b):
-        return '%.2fGB' % (b / float(1024**3))
 
     # work item I/O loop
     def ioloop(tid, path, page, out):
