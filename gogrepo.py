@@ -748,7 +748,8 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
             with codecs.open(os.path.join(item_homedir, INFO_FILENAME), 'w', 'utf-8') as fd_info:
                 fd_info.write(u'{0}-- {1} --{0}{0}'.format(os.linesep, item.long_title))
                 fd_info.write(u'title.......... {}{}'.format(item.title, os.linesep))
-                fd_info.write(u'genre.......... {}{}'.format(item.genre, os.linesep))
+                if item.genre:
+                    fd_info.write(u'genre.......... {}{}'.format(item.genre, os.linesep))
                 fd_info.write(u'game id........ {}{}'.format(item.id, os.linesep))
                 fd_info.write(u'url............ {}{}'.format(GOG_HOME_URL + item.store_url, os.linesep))
                 if item.rating > 0:
@@ -759,6 +760,8 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
                 fd_info.write(u'{0}game items.....:{0}{0}'.format(os.linesep))
                 for game_item in item.downloads:
                     fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
+                    if game_item.version:
+                        fd_info.write(u'        version: {}{}'.format(game_item.version, os.linesep))
                 if len(item.extras) > 0:
                     fd_info.write(u'{0}extras.........:{0}{0}'.format(os.linesep))
                     for game_item in item.extras:
