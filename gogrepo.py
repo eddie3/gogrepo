@@ -586,7 +586,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 item.store_url = item_json_data['url']
                 item.media_type = media_type
                 item.rating = item_json_data['rating']
-                item.has_updates = bool(item_json_data['updates'])
+                item.has_updates = bool(item_json_data['updates']) or bool(item_json_data['isNew'])
 
                 if id:
                     if item.title == id or str(item.id) == id:  # support by game title or gog id
