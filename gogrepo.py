@@ -310,9 +310,11 @@ def fetch_file_info(d, fetch_md5):
                         d.md5 = shelf_etree.attrib['md5']
                 except HTTPError as e:
                     if e.code == 404:
-                        warn("no md5 data found for %s" % d.name)
+                        warn("no md5 data found for {}".format(d.name))
                     else:
                         raise
+                except xml.etree.ElementTree.ParseError:
+                    warn('xml parsing error occurred trying to get md5 data for {}'.format(d.name))
 
 
 def filter_downloads(out_list, downloads_list, lang_list, os_list):
