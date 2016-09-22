@@ -55,6 +55,9 @@ try:
 except ImportError:
     def html2text(x): return x
 
+# lib mods
+cookiejar.MozillaCookieJar.magic_re = r'.*'  # bypass the hardcoded "Netscape HTTP Cookie File" check
+
 # configure logging
 logFormatter = logging.Formatter("%(asctime)s | %(message)s", datefmt='%H:%M:%S')
 rootLogger = logging.getLogger('ws')
@@ -78,8 +81,8 @@ SERIAL_FILENAME = r'!serial.txt'
 INFO_FILENAME = r'!info.txt'
 
 # global web utilities
-cookiejar = cookiejar.LWPCookieJar(COOKIES_FILENAME)
-cookieproc = HTTPCookieProcessor(cookiejar)
+global_cookies = cookiejar.LWPCookieJar(COOKIES_FILENAME)
+cookieproc = HTTPCookieProcessor(global_cookies)
 opener = build_opener(cookieproc)
 treebuilder = html5lib.treebuilders.getTreeBuilder('etree')
 parser = html5lib.HTMLParser(tree=treebuilder, namespaceHTMLElements=False)
@@ -191,10 +194,26 @@ class AttrDict(dict):
 
 
 def load_cookies():
+    # try to load as default lwp format
     try:
-        cookiejar.load()
+        global_cookies.load()
+        return
     except IOError:
         pass
+
+    # try to import as mozilla 'cookies.txt' format
+    try:
+        tmp_jar = cookiejar.MozillaCookieJar(global_cookies.filename)
+        tmp_jar.load()
+        for c in tmp_jar:
+            global_cookies.set_cookie(c)
+        global_cookies.save()
+        return
+    except IOError:
+        pass
+
+    error('failed to load cookies, did you login first?')
+    raise SystemExit(1)
 
 
 def load_manifest(filepath=MANIFEST_FILENAME):
@@ -473,7 +492,7 @@ def cmd_login(user, passwd):
                   'login_success': False,
                   }
 
-    cookiejar.clear()  # reset cookiejar
+    global_cookies.clear()  # reset cookiejar
 
     # prompt for login/password if needed
     if login_data['user'] is None:
@@ -536,7 +555,7 @@ def cmd_login(user, passwd):
     # save cookies on success
     if login_data['login_success']:
         info('login successful!')
-        cookiejar.save()
+        global_cookies.save()
     else:
         error('login failed, verify your username/password and try again.')
 
@@ -548,9 +567,9 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     known_ids = []
     i = 0
 
-    gamesdb = load_manifest()
-
     load_cookies()
+
+    gamesdb = load_manifest()
 
     api_url  = GOG_ACCOUNT_URL
     api_url += "/getFilteredProducts"
@@ -572,7 +591,11 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                                     'sortBy': 'title',  # sort order
                                     'page': str(i)}, delay=0) as data_request:
             reader = codecs.getreader("utf-8")
-            json_data = json.load(reader(data_request))
+            try:
+                json_data = json.load(reader(data_request))
+            except ValueError:
+                error('failed to load product data (are you still logged in?)')
+                raise SystemExit(1)
 
             # Parse out the interesting fields and add to items dict
             for item_json_data in json_data['products']:
