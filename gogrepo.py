@@ -642,6 +642,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 item.forum_url = item_json_data['forumLink']
                 item.changelog = item_json_data['changelog']
                 item.release_timestamp = item_json_data['releaseTimestamp']
+                item.gog_messages = item_json_data['messages']
                 item.downloads = []
                 item.extras = []
 
@@ -759,6 +760,10 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
                 if item.release_timestamp > 0:
                     rel_date = datetime.datetime.fromtimestamp(item.release_timestamp).strftime('%B %d, %Y')
                     fd_info.write(u'release date... {}{}'.format(rel_date, os.linesep))
+                if hasattr(item, 'gog_messages') and item.gog_messages:
+                    fd_info.write(u'{0}gog messages...:{0}'.format(os.linesep))
+                    for gog_msg in item.gog_messages:
+                        fd_info.write(u'{0}{1}{0}'.format(os.linesep, html2text(gog_msg).strip()))
                 fd_info.write(u'{0}game items.....:{0}{0}'.format(os.linesep))
                 for game_item in item.downloads:
                     fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
