@@ -219,7 +219,7 @@ def load_cookies():
 def load_manifest(filepath=MANIFEST_FILENAME):
     info('loading local manifest...')
     try:
-        with open(filepath, 'rU') as r:
+        with codecs.open(MANIFEST_FILENAME, 'rU', 'utf-8') as r:
             ad = r.read().replace('{', 'AttrDict(**{').replace('}', '})')
         return eval(ad)
     except IOError:
@@ -228,7 +228,7 @@ def load_manifest(filepath=MANIFEST_FILENAME):
 
 def save_manifest(items):
     info('saving manifest...')
-    with open(MANIFEST_FILENAME, 'w') as w:
+    with codecs.open(MANIFEST_FILENAME, 'w', 'utf-8') as w:
         print('# {} games'.format(len(items)), file=w)
         pprint.pprint(items, width=123, stream=w)
 
