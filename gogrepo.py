@@ -1028,18 +1028,10 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, c
                 if clean_on_fail and fail:
                     info('cleaning %s' % itm_dirpath)
                     clean_file_cnt += 1
-<<<<<<< HEAD
                     dest_dir = os.path.join(orphan_root_dir, game.title)
                     if not os.path.isdir(dest_dir):
                         os.makedirs(dest_dir)
                     shutil.move(itm_file, dest_dir)
-=======
-                    dest_dir = os.path.join(orphan_root_dir, cur_dir)
-                    if not os.path.isdir(dest_dir):
-                        os.makedirs(dest_dir)
-                    file_to_move = os.path.join(cleandir, cur_dir, cur_dir_file)
-                    shutil.move(file_to_move, dest_dir)
->>>>>>> 7a5992ebbc69456c896047e5e7c06a973a4efe01
                 
             else:
                 info('missing file %s' % itm_dirpath)
