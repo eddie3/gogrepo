@@ -448,7 +448,9 @@ def process_argv(argv):
     g1.add_argument('-skipmd5', action='store_true', help='do not perform MD5 check')
     g1.add_argument('-skipsize', action='store_true', help='do not perform size check')
     g1.add_argument('-skipzip', action='store_true', help='do not perform zip integrity check')
-    g1.add_argument('-delete', action='store_true', help='delete any files which fail integrity test')
+    g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g2.add_argument('-delete', action='store_true', help='delete any files which fail integrity test')
+    g2.add_argument('-clean', action='store_true', help='clean any files which fail integrity test')
 
     g1 = sp1.add_parser('clean', help='Clean your games directory of files not known by manifest')
     g1.add_argument('cleandir', action='store', help='root directory containing gog games to be cleaned')
@@ -956,7 +958,7 @@ def cmd_backup(src_dir, dest_dir):
                     shutil.copy(os.path.join(src_game_dir, extra_file), dest_game_dir)
 
 
-def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, id):
+def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, clean_on_fail, id):
     """Verifies all game files match manifest with any available md5 & file size info
     """
     item_count = 0
@@ -965,9 +967,17 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
     bad_size_cnt = 0
     bad_zip_cnt = 0
     del_file_cnt = 0
+    clean_file_cnt = 0
 
     items = load_manifest()
 
+    if clean_on_fail:
+        # create orphan root dir
+        orphan_root_dir = os.path.join(gamedir, ORPHAN_DIR_NAME)
+        if not os.path.isdir(orphan_root_dir):
+            os.makedirs(orphan_root_dir)
+    
+    
     # filter items based on id
     if id:
         games_to_check = []
@@ -1015,6 +1025,14 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
                     info('deleting %s' % itm_dirpath)
                     os.remove(itm_file)
                     del_file_cnt += 1
+                if clean_on_fail and fail:
+                    info('cleaning %s' % itm_dirpath)
+                    clean_file_cnt += 1
+                    dest_dir = os.path.join(orphan_root_dir, game.title)
+                    if not os.path.isdir(dest_dir):
+                        os.makedirs(dest_dir)
+                    shutil.move(itm_file, dest_dir)
+                
             else:
                 info('missing file %s' % itm_dirpath)
                 missing_cnt += 1
@@ -1032,6 +1050,8 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
         info('zipfile failures.... %d' % bad_zip_cnt)
     if delete_on_fail:
         info('deleted items....... %d' % del_file_cnt)
+    if clean_on_fail:
+        info('cleaned items....... %d' % clean_file_cnt)
 
 
 def cmd_clean(cleandir, dryrun):
@@ -1108,7 +1128,7 @@ def main(args):
         check_md5 = not args.skipmd5
         check_filesize = not args.skipsize
         check_zips = not args.skipzip
-        cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete, args.id)
+        cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete, args.clean, args.id)
     elif args.cmd == 'backup':
         cmd_backup(args.src_dir, args.dest_dir)
     elif args.cmd == 'clean':
