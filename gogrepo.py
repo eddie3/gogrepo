@@ -771,43 +771,52 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
 
         # Generate and save a game info text file
         if not dryrun:
-            with codecs.open(os.path.join(item_homedir, INFO_FILENAME), 'w', 'utf-8') as fd_info:
-                fd_info.write(u'{0}-- {1} --{0}{0}'.format(os.linesep, item.long_title))
-                fd_info.write(u'title.......... {}{}'.format(item.title, os.linesep))
-                if item.genre:
-                    fd_info.write(u'genre.......... {}{}'.format(item.genre, os.linesep))
-                fd_info.write(u'game id........ {}{}'.format(item.id, os.linesep))
-                fd_info.write(u'url............ {}{}'.format(GOG_HOME_URL + item.store_url, os.linesep))
-                if item.rating > 0:
-                    fd_info.write(u'user rating.... {}%{}'.format(item.rating * 2, os.linesep))
-                if item.release_timestamp > 0:
-                    rel_date = datetime.datetime.fromtimestamp(item.release_timestamp).strftime('%B %d, %Y')
-                    fd_info.write(u'release date... {}{}'.format(rel_date, os.linesep))
-                if hasattr(item, 'gog_messages') and item.gog_messages:
-                    fd_info.write(u'{0}gog messages...:{0}'.format(os.linesep))
-                    for gog_msg in item.gog_messages:
-                        fd_info.write(u'{0}{1}{0}'.format(os.linesep, html2text(gog_msg).strip()))
-                fd_info.write(u'{0}game items.....:{0}{0}'.format(os.linesep))
-                for game_item in item.downloads:
-                    fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
-                    if game_item.version:
-                        fd_info.write(u'        version: {}{}'.format(game_item.version, os.linesep))
-                if len(item.extras) > 0:
-                    fd_info.write(u'{0}extras.........:{0}{0}'.format(os.linesep))
-                    for game_item in item.extras:
-                        fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
-                if item.changelog:
-                    fd_info.write(u'{0}changelog......:{0}{0}'.format(os.linesep))
-                    fd_info.write(html2text(item.changelog).strip())
-                    fd_info.write(os.linesep)
+            info_str = u'{0}-- {1} --{0}{0}'.format(os.linesep, item.long_title)
+            info_str += u'title.......... {}{}'.format(item.title, os.linesep)
+            if item.genre:
+                info_str += u'genre.......... {}{}'.format(item.genre, os.linesep)
+            info_str += u'game id........ {}{}'.format(item.id, os.linesep)
+            info_str += u'url............ {}{}'.format(GOG_HOME_URL + item.store_url, os.linesep)
+            if item.rating > 0:
+                info_str += u'user rating.... {}%{}'.format(item.rating * 2, os.linesep)
+            if item.release_timestamp > 0:
+                rel_date = datetime.datetime.fromtimestamp(item.release_timestamp).strftime('%B %d, %Y')
+                info_str += u'release date... {}{}'.format(rel_date, os.linesep)
+            if hasattr(item, 'gog_messages') and item.gog_messages:
+                info_str += u'{0}gog messages...:{0}'.format(os.linesep)
+                for gog_msg in item.gog_messages:
+                    info_str += u'{0}{1}{0}'.format(os.linesep, html2text(gog_msg).strip())
+            info_str += u'{0}game items.....:{0}{0}'.format(os.linesep)
+            for game_item in item.downloads:
+                info_str += u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep)
+                if game_item.version:
+                    info_str += u'        version: {}{}'.format(game_item.version, os.linesep)
+            if len(item.extras) > 0:
+                info_str += u'{0}extras.........:{0}{0}'.format(os.linesep)
+                for game_item in item.extras:
+                    info_str += u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep)
+            if item.changelog:
+                info_str += u'{0}changelog......:{0}{0}'.format(os.linesep)
+                info_str += html2text(item.changelog).strip()
+                info_str += os.linesep
+
+            with codecs.open(os.path.join(item_homedir, INFO_FILENAME), 'r', 'utf-8') as fd_info:
+                info_file_contents = fd_info.read()
+
+            if info_file_contents != info_str:
+                with codecs.open(os.path.join(item_homedir, INFO_FILENAME), 'w', 'utf-8') as fd_info:
+                    fd_info.write(info_str)
 
         # Generate and save a game serial text file
         if not dryrun:
             if item.serial != '':
-                with codecs.open(os.path.join(item_homedir, SERIAL_FILENAME), 'w', 'utf-8') as fd_serial:
-                    item.serial = item.serial.replace(u'<span>', '')
-                    item.serial = item.serial.replace(u'</span>', os.linesep)
-                    fd_serial.write(item.serial)
+                item.serial = item.serial.replace(u'<span>', '')
+                item.serial = item.serial.replace(u'</span>', os.linesep)
+                with codecs.open(os.path.join(item_homedir, SERIAL_FILENAME), 'r', 'utf-8') as fd_serial:
+                    serial_file_contents = fd_serial.read()
+                    if serial_file_contents != item.serial:
+                        with codecs.open(os.path.join(item_homedir, SERIAL_FILENAME), 'w', 'utf-8') as fd_serial:
+                            fd_serial.write(item.serial)
 
         # Populate queue with all files to be downloaded
         for game_item in item.downloads + item.extras:
