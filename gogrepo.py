@@ -565,6 +565,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     items = []
     item_count = 0
     known_ids = []
+    known_titles = []
     i = 0
 
     load_cookies()
@@ -575,10 +576,13 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     api_url += "/getFilteredProducts"
 
     # Make convenient list of known ids
-    if skipknown:
-        for item in gamesdb:
-            known_ids.append(item.id)
+    for item in gamesdb:
+        known_ids.append(item.id)
 
+    for item in gamesdb:
+        known_titles.append(item.title)
+
+        
     # Fetch shelf data
     done = False
     while not done:
@@ -629,10 +633,34 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
             if i >= json_data['totalPages']:
                 done = True
 
+    if not id and not updateonly and not skipknown:
+        validIDs = [item.id for item in items]
+        invalidItems = [itemID for itemID in known_ids if itemID not in validIDs]
+        if len(invalidItems) != 0: 
+            warn('old games in manifest. Removing ...')
+            for item in invalidItems:
+                warn('Removing id "{}" from manifest'.format(item))
+                item_idx = item_checkdb(item, gamesdb)
+                if item_idx is not None:
+                    del gamesdb[item_idx]
+                
     # bail if there's nothing to do
     if len(items) == 0:
         if id:
             warn('game id "{}" was not found in your product data'.format(id))
+            if (int(id) in known_ids or id in known_titles):
+                if (int(id) in known_ids):
+                    warn('but was found in manifest. Removing from manifest...')
+                    item_idx = item_checkdb(int(id), gamesdb)
+                    if item_idx is not None:
+                        del gamesdb[item_idx]
+                if (id in known_titles):  
+                    warn('but was found in manifest. Removing from manifest...')            
+                    gameToRemove = [item for item in gamesdb if item.title == id][0]
+                    item_idx = item_checkdb(gameToRemove.id, gamesdb)
+                    if item_idx is not None:
+                        del gamesdb[item_idx]                 
+                save_manifest(gamesdb)
         elif updateonly:
             warn('no new game updates found.')
         elif skipknown:
@@ -640,7 +668,8 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
         else:
             warn('nothing to do')
         return
-
+        
+        
     items_count = len(items)
     print_padding = len(str(items_count))
     if not id and not updateonly and not skipknown:
