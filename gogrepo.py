@@ -708,11 +708,15 @@ def cmd_import(src_dir, dest_dir,os_list,lang_list):
     info("collecting md5 data out of the manifest")
     md5_info = {}  # holds tuples of (title, filename) with md5 as key
 
+    valid_langs = []
+    for lang in lang_list:
+        valid_langs.append(LANG_TABLE[lang])
+	
     for game in gamesdb:
         for game_item in game.downloads:
             if game_item.md5 is not None:
-                if game_item.lang is in lang_list:
-                    if game_item.os is in os_list:
+                if game_item.lang in valid_langs:
+                    if game_item.os_type in os_list:
                         md5_info[game_item.md5] = (game.title, game_item.name)
 
     info("searching for files within '%s'" % src_dir)
@@ -782,11 +786,20 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id, os_list, lang_list)
         if skipgames:
             item.downloads = []
 
+        
         downloadsOS = [game_item for game_item in item.downloads if game_item.os_type in os_list]
         item.downloads = downloadsOS
+        #print(item.downloads)
 
-        downloadslangs = [game_item for game_item in item.downloads if game_item.lang in lang_list]
+		# hold list of valid languages languages as known by gogapi json stuff
+        valid_langs = []
+        for lang in lang_list:
+            valid_langs.append(LANG_TABLE[lang])
+
+		
+        downloadslangs = [game_item for game_item in item.downloads if game_item.lang in valid_langs]
         item.downloads = downloadslangs
+        #print(item.downloads)
         
 
         # Generate and save a game info text file
@@ -963,7 +976,12 @@ def cmd_backup(src_dir, dest_dir,skipextras,skipgames,os_list,lang_list):
         downloadsOS = [game_item for game_item in game.downloads if game_item.os_type in os_list]
         game.downloads = downloadsOS
 
-        downloadslangs = [game_item for game_item in game.downloads if game_item.lang in lang_list]
+		
+        valid_langs = []
+        for lang in lang_list:
+            valid_langs.append(LANG_TABLE[lang])
+		
+        downloadslangs = [game_item for game_item in game.downloads if game_item.lang in valid_langs]
         game.downloads = downloadslangs
         
         for itm in game.downloads + game.extras:
