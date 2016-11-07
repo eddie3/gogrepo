@@ -23,6 +23,7 @@ import hashlib
 import getpass
 import argparse
 import codecs
+import io
 import datetime
 import shutil
 import socket
@@ -37,6 +38,8 @@ try:
     from urlparse import urlparse
     from urllib import urlencode
     from urllib2 import HTTPError, URLError, HTTPCookieProcessor, build_opener, Request
+    from itertools import izip_longest as zip_longest
+    from StringIO import StringIO
 except ImportError:
     # python 3
     from queue import Queue
@@ -44,6 +47,8 @@ except ImportError:
     from http.client import BadStatusLine
     from urllib.parse import urlparse, urlencode
     from urllib.request import HTTPCookieProcessor, HTTPError, URLError, build_opener, Request
+    from itertools import zip_longest
+    from io import StringIO
 
 # python 2 / 3 renames
 try: input = raw_input
@@ -192,6 +197,35 @@ class AttrDict(dict):
     def __setattr__(self, key, val):
         self[key] = val
 
+class ConditionalWriter(object):
+    """File writer that only updates file on disk if contents chanaged"""
+
+    def __init__(self, filename):
+        self._buffer = None
+        self._filename = filename
+
+    def __enter__(self):
+        self._buffer = tmp = StringIO()
+        return tmp
+
+    def __exit__(self, _exc_type, _exc_value, _traceback):
+        tmp = self._buffer
+        if tmp:
+            pos = tmp.tell()
+            tmp.seek(0)
+
+            file_changed = not os.path.exists(self._filename)
+            if not file_changed:
+                with codecs.open(self._filename, 'r', 'utf-8') as orig:
+                    for (new_chunk, old_chunk) in zip_longest(tmp, orig):
+                        if new_chunk != old_chunk:
+                            file_changed = True
+                            break
+
+            if file_changed:
+                with codecs.open(self._filename, 'w', 'utf-8') as overwrite:
+                    tmp.seek(0)
+                    shutil.copyfileobj(tmp, overwrite)
 
 def load_cookies():
     # try to load as default lwp format
@@ -771,7 +805,7 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
 
         # Generate and save a game info text file
         if not dryrun:
-            with codecs.open(os.path.join(item_homedir, INFO_FILENAME), 'w', 'utf-8') as fd_info:
+            with ConditionalWriter(os.path.join(item_homedir, INFO_FILENAME)) as fd_info:
                 fd_info.write(u'{0}-- {1} --{0}{0}'.format(os.linesep, item.long_title))
                 fd_info.write(u'title.......... {}{}'.format(item.title, os.linesep))
                 if item.genre:
@@ -800,11 +834,10 @@ def cmd_download(savedir, skipextras, skipgames, dryrun, id):
                     fd_info.write(u'{0}changelog......:{0}{0}'.format(os.linesep))
                     fd_info.write(html2text(item.changelog).strip())
                     fd_info.write(os.linesep)
-
         # Generate and save a game serial text file
         if not dryrun:
             if item.serial != '':
-                with codecs.open(os.path.join(item_homedir, SERIAL_FILENAME), 'w', 'utf-8') as fd_serial:
+                with ConditionalWriter(os.path.join(item_homedir, SERIAL_FILENAME)) as fd_serial:
                     item.serial = item.serial.replace(u'<span>', '')
                     item.serial = item.serial.replace(u'</span>', os.linesep)
                     fd_serial.write(item.serial)
