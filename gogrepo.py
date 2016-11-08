@@ -467,7 +467,7 @@ def process_argv(argv):
     g1.add_argument('-id', action='store', help='id of the game in the manifest to download')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
-    g1.add_argument('-skipids', action='store', help='id[s] of the game[s] in the manifest to NOT download')
+    g1.add_argument('-skipids', action='store', help='id[s] or names of the game[s] in the manifest to NOT download', nargs='*', default=[])
 
     g1 = sp1.add_parser('import', help='Import files with any matching MD5 checksums found in manifest')
     g1.add_argument('src_dir', action='store', help='source directory to import games from')
@@ -791,9 +791,10 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
                 break
 
     if skipids:
-        info("skipping games with id[s]: {%s}" % skipids)
-        ignore_list = skipids.split(",")
-        items[:] = [item for item in items if item.title not in ignore_list]
+        formattedSkipIds =  ', '.join(map(str, skipids))
+        info("skipping games with id[s]: {%s}" % formattedSkipIds )
+        downloadItems = [item for item in items if item.title not in skipids and item.id not in skipids]
+        items = downloadItems
 
     # Find all items to be downloaded and push into work queue
     for item in sorted(items, key=lambda g: g.title):
