@@ -621,6 +621,8 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
     if skipknown:
         for item in gamesdb:
             known_ids.append(item.id)
+            
+    idsOriginal = ids[:]       
 
     # Fetch shelf data
     done = False
@@ -698,7 +700,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
         else:
             warn('nothing to do')
         if ids:
-            formattedIds =  ', '.join(map(str, ids))        
+            formattedIds =  ', '.join(map(str, idsOriginal))        
             warn('with game id(s) from {%s}' % formattedIds)
         return
 
