@@ -457,17 +457,21 @@ def process_argv(argv):
     g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
     g2.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
     g2.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
-    g2.add_argument('-id', action='store', help='id/dirname of a specific game to update')
+    g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g3.add_argument('-ids', action='store', help='id(s)/titles(s) of (a) specific game(s) not to update', nargs='*', default=[])
+    g3.add_argument('-skipids', action='store', help='id(s)/titles(s) of (a) specific game(s) to update', nargs='*', default=[])
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
-    g1.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
-    g1.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
-    g1.add_argument('-id', action='store', help='id of the game in the manifest to download')
+    g2 = g1.add_mutually_exclusive_group()
+    g2.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
+    g2.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
+    g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g3.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to download', nargs='*', default=[])
+    g3.add_argument('-skipids', action='store', help='id(s) or title(s) of the game(s) in the manifest to NOT download', nargs='*', default=[])
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
-    g1.add_argument('-skipids', action='store', help='id[s] or names of the game[s] in the manifest to NOT download', nargs='*', default=[])
 
     g1 = sp1.add_parser('import', help='Import files with any matching MD5 checksums found in manifest')
     g1.add_argument('src_dir', action='store', help='source directory to import games from')
@@ -479,11 +483,13 @@ def process_argv(argv):
 
     g1 = sp1.add_parser('verify', help='Scan your downloaded GOG files and verify their size, MD5, and zip integrity')
     g1.add_argument('gamedir', action='store', help='directory containing games to verify', nargs='?', default='.')
-    g1.add_argument('-id', action='store', help='id of a specific game to verify')
     g1.add_argument('-skipmd5', action='store_true', help='do not perform MD5 check')
     g1.add_argument('-skipsize', action='store_true', help='do not perform size check')
     g1.add_argument('-skipzip', action='store_true', help='do not perform zip integrity check')
     g1.add_argument('-delete', action='store_true', help='delete any files which fail integrity test')
+    g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g2.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to verify', nargs='*', default=[])
+    g2.add_argument('-skipids', action='store', help='id(s) or title(s) of the game[s] in the manifest to NOT verify', nargs='*', default=[])
 
     g1 = sp1.add_parser('clean', help='Clean your games directory of files not known by manifest')
     g1.add_argument('cleandir', action='store', help='root directory containing gog games to be cleaned')
@@ -595,13 +601,15 @@ def cmd_login(user, passwd):
         error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list, skipknown, updateonly, id):
+def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
     media_type = GOG_MEDIA_TYPE_GAME
     items = []
     item_count = 0
     known_ids = []
     i = 0
-
+    
+    
+ 
     load_cookies()
 
     gamesdb = load_manifest()
@@ -645,40 +653,58 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 item.store_url = item_json_data['url']
                 item.media_type = media_type
                 item.rating = item_json_data['rating']
-                item.has_updates = bool(item_json_data['updates']) or bool(item_json_data['isNew'])
-
-                if id:
-                    if item.title == id or str(item.id) == id:  # support by game title or gog id
-                        info('found "{}" in product data!'.format(item.title))
-                        items.append(item)
-                        done = True
-                elif updateonly:
-                    if item.has_updates:
-                        items.append(item)
-                elif skipknown:
-                    if item.id not in known_ids:
-                        items.append(item)
-                else:
-                    items.append(item)
-
+                item.has_updates = bool(item_json_data['updates'])
+                
+                
+                if not done:
+                    if item.title not in skipids and str(item.id) not in skipids: 
+                        if ids: 
+                            if (item.title  in ids or str(item.id) in ids):  # support by game title or gog id
+                                info('scanning found "{}" in product data!'.format(item.title))
+                                try:
+                                    ids.remove(item.title)
+                                except ValueError:
+                                    try:
+                                        ids.remove(str(item.id))
+                                    except ValueError:
+                                        warn("Somehow we have matched an unspecified ID. Huh ?")
+                                if not ids:
+                                    done = True
+                            else:
+                                continue
+                        if updateonly:
+                            if item.has_updates:
+                                items.append(item)
+                        elif skipknown:
+                            if item.id not in known_ids:
+                                items.append(item)
+                        else:
+                            items.append(item)
+                    else:        
+                        info('skipping "{}" found in product data!'.format(item.title))
+                    
+                
             if i >= json_data['totalPages']:
                 done = True
+                
+ 
 
     # bail if there's nothing to do
-    if len(items) == 0:
-        if id:
-            warn('game id "{}" was not found in your product data'.format(id))
-        elif updateonly:
+    if len(items) == 0:    
+        if updateonly:
             warn('no new game updates found.')
         elif skipknown:
             warn('no new games found.')
         else:
             warn('nothing to do')
+        if ids:
+            formattedIds =  ', '.join(map(str, ids))        
+            warn('with game id(s) from {%s}' % formattedIds)
         return
 
     items_count = len(items)
     print_padding = len(str(items_count))
-    if not id and not updateonly and not skipknown:
+    if not ids and not updateonly and not skipknown:
         info('found %d games !!%s' % (items_count, '!'*int(items_count/100)))  # teehee
 
     # fetch item details
@@ -766,7 +792,7 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
+def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
@@ -781,19 +807,16 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
     def gigs(b):
         return '%.2fGB' % (b / float(1024**3))
 
-    if id:
-        for item in sorted(items, key=lambda g: g.title):
-            if item.title == id:
-                oldlist = list(items)
-                items.remove(item)
-                newlist = [game for game in oldlist if game not in items]
-                items = newlist
-                break
+    if ids:
+        formattedIds =  ', '.join(map(str, ids))
+        info("downloading games with id(s): {%s}" % formattedIds)
+        downloadItems = [item for item in items if item.title in ids or str(item.id) in ids]
+        items = downloadItems
 
     if skipids:
         formattedSkipIds =  ', '.join(map(str, skipids))
-        info("skipping games with id[s]: {%s}" % formattedSkipIds )
-        downloadItems = [item for item in items if item.title not in skipids and item.id not in skipids]
+        info("skipping games with id(s): {%s}" % formattedSkipIds)
+        downloadItems = [item for item in items if item.title not in skipids and str(item.id) not in skipids]
         items = downloadItems
 
     # Find all items to be downloaded and push into work queue
@@ -996,7 +1019,7 @@ def cmd_backup(src_dir, dest_dir):
                     shutil.copy(os.path.join(src_game_dir, extra_file), dest_game_dir)
 
 
-def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, id):
+def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, ids, skipids):
     """Verifies all game files match manifest with any available md5 & file size info
     """
     item_count = 0
@@ -1007,20 +1030,32 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
     del_file_cnt = 0
 
     items = load_manifest()
+    
+    games_to_check_base = sorted(items, key=lambda g: g.title)
 
-    # filter items based on id
-    if id:
-        games_to_check = []
-        for game in sorted(items, key=lambda g: g.title):
-            if game.title == id or str(game.id) == id:
-                games_to_check.append(game)
-        if len(games_to_check) == 0:
-            warn('no known files with id "{}"'.format(id))
+    if skipids:
+        formattedSkipIds =  ', '.join(map(str, skipids))                
+        info('skipping files with ids in {%s}' % formattedSkipIds)
+        games_to_check = [game for game in games_to_check_base if (game.title not in skipids and str(game.id) not in skipids)]
+        games_to_skip = [game for game in games_to_check_base if (game.title  in skipids or str(game.id) in skipids)]
+        games_to_skip_titles = [game.title for game in games_to_skip]
+        games_to_skip_ids = [str(game.id) for game in games_to_skip]        
+        not_skipped = [id for id in skipids if id not in games_to_skip_titles and id not in games_to_skip_ids]
+        if not_skipped:
+            formattedNotSkipped =  ', '.join(map(str, not_skipped))                
+            warn('The following id(s)/title(s) could not be found to skip {%s}' % formattedNotSkipped)
+    elif ids:
+        games_to_check = [game for game in games_to_check_base if (game.title in ids or str(game.id) in ids)]
+        if not games_to_check:
+            formattedIds =  ', '.join(map(str, ids))                
+            warn('no known files with ids in {%s} where found' % formattedIds)
             return
-        info('verifying known files with id "{}"'.format(id))
+        else:    
+            formattedTitles =  ', '.join(map(str, [game.title for game in games_to_check]))                
+            info('verifying known files from titles in {%s}' % formattedTitles)        
     else:
-        info('verifying all known files in the manifest')
-        games_to_check = sorted(items, key=lambda g: g.title)
+        info('verifying all known files in the manifest')        
+        games_to_check =  games_to_check_base    
 
     for game in games_to_check:
         for itm in game.downloads + game.extras:
@@ -1136,19 +1171,19 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.id)
+        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids)
     elif args.cmd == 'download':
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id)
+        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.ids)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':
         check_md5 = not args.skipmd5
         check_filesize = not args.skipsize
         check_zips = not args.skipzip
-        cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete, args.id)
+        cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete, args.ids, args.skipids)
     elif args.cmd == 'backup':
         cmd_backup(args.src_dir, args.dest_dir)
     elif args.cmd == 'clean':
