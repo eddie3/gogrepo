@@ -461,9 +461,11 @@ def process_argv(argv):
     g3.add_argument('-ids', action='store', help='id(s)/titles(s) of (a) specific game(s) not to update', nargs='*', default=[])
     g3.add_argument('-skipids', action='store', help='id(s)/titles(s) of (a) specific game(s) to update', nargs='*', default=[])
 
-    g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
+    g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')    
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
+    g1.add_argument('-os', action='store', help='download game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
+    g1.add_argument('-lang', action='store', help='download game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)    
     g2 = g1.add_mutually_exclusive_group()
     g2.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
     g2.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
@@ -476,10 +478,16 @@ def process_argv(argv):
     g1 = sp1.add_parser('import', help='Import files with any matching MD5 checksums found in manifest')
     g1.add_argument('src_dir', action='store', help='source directory to import games from')
     g1.add_argument('dest_dir', action='store', help='directory to copy and name imported files to')
+    g1.add_argument('-os', action='store', help='import game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
+    g1.add_argument('-lang', action='store', help='import game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)        
 
     g1 = sp1.add_parser('backup', help='Perform an incremental backup to specified directory')
     g1.add_argument('src_dir', action='store', help='source directory containing gog items')
     g1.add_argument('dest_dir', action='store', help='destination directory to backup files to')
+    g1.add_argument('-os', action='store', help='backup game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
+    g1.add_argument('-lang', action='store', help='backup game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)        
+    g1.add_argument('-skipextras', action='store_true', help='skip backup of any GOG extra files')
+    g1.add_argument('-skipgames', action='store_true', help='skip backup of any GOG game files')
 
     g1 = sp1.add_parser('verify', help='Scan your downloaded GOG files and verify their size, MD5, and zip integrity')
     g1.add_argument('gamedir', action='store', help='directory containing games to verify', nargs='?', default='.')
@@ -490,6 +498,7 @@ def process_argv(argv):
     g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
     g2.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to verify', nargs='*', default=[])
     g2.add_argument('-skipids', action='store', help='id(s) or title(s) of the game[s] in the manifest to NOT verify', nargs='*', default=[])
+
 
     g1 = sp1.add_parser('clean', help='Clean your games directory of files not known by manifest')
     g1.add_argument('cleandir', action='store', help='root directory containing gog games to be cleaned')
@@ -503,7 +512,7 @@ def process_argv(argv):
     # parse the given argv.  raises SystemExit on error
     args = p1.parse_args(argv[1:])
 
-    if args.cmd == 'update':
+    if args.cmd == 'update' or args.cmd == 'download' or args.cmd == 'backup' or args.cmd == 'import':
         for lang in args.lang:  # validate the language
             if lang not in VALID_LANG_TYPES:
                 error('error: specified language "%s" is not one of the valid languages %s' % (lang, VALID_LANG_TYPES))
@@ -752,7 +761,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
     save_manifest(gamesdb)
 
 
-def cmd_import(src_dir, dest_dir):
+def cmd_import(src_dir, dest_dir,os_list,lang_list):
     """Recursively finds all files within root_dir and compares their MD5 values
     against known md5 values from the manifest.  If a match is found, the file will be copied
     into the game storage dir.
@@ -762,10 +771,16 @@ def cmd_import(src_dir, dest_dir):
     info("collecting md5 data out of the manifest")
     md5_info = {}  # holds tuples of (title, filename) with md5 as key
 
+    valid_langs = []
+    for lang in lang_list:
+        valid_langs.append(LANG_TABLE[lang])
+        
     for game in gamesdb:
         for game_item in game.downloads:
             if game_item.md5 is not None:
-                md5_info[game_item.md5] = (game.title, game_item.name)
+                if game_item.lang in valid_langs:
+                    if game_item.os_type in os_list:
+                        md5_info[game_item.md5] = (game.title, game_item.name)
 
     info("searching for files within '%s'" % src_dir)
     file_list = []
@@ -794,7 +809,7 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids):
+def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, lang_list):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
@@ -831,9 +846,27 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids):
 
         if skipextras:
             item.extras = []
+            
+            
 
         if skipgames:
             item.downloads = []
+
+        
+        downloadsOS = [game_item for game_item in item.downloads if game_item.os_type in os_list]
+        item.downloads = downloadsOS
+        #print(item.downloads)
+
+        # hold list of valid languages languages as known by gogapi json stuff
+        valid_langs = []
+        for lang in lang_list:
+            valid_langs.append(LANG_TABLE[lang])
+
+        
+        downloadslangs = [game_item for game_item in item.downloads if game_item.lang in valid_langs]
+        item.downloads = downloadslangs
+        #print(item.downloads)
+        
 
         # Generate and save a game info text file
         if not dryrun:
@@ -873,6 +906,8 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids):
                     item.serial = item.serial.replace(u'<span>', '')
                     item.serial = item.serial.replace(u'</span>', os.linesep)
                     fd_serial.write(item.serial)
+                    
+                    
 
         # Populate queue with all files to be downloaded
         for game_item in item.downloads + item.extras:
@@ -988,12 +1023,32 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids):
         raise
 
 
-def cmd_backup(src_dir, dest_dir):
+def cmd_backup(src_dir, dest_dir,skipextras,skipgames,os_list,lang_list):
     gamesdb = load_manifest()
 
     info('finding all known files in the manifest')
     for game in sorted(gamesdb, key=lambda g: g.title):
         touched = False
+
+        if skipextras:
+            game.extras = []
+            
+            
+
+        if skipgames:
+            game.downloads = []
+
+        downloadsOS = [game_item for game_item in game.downloads if game_item.os_type in os_list]
+        game.downloads = downloadsOS
+
+		
+        valid_langs = []
+        for lang in lang_list:
+            valid_langs.append(LANG_TABLE[lang])
+		
+        downloadslangs = [game_item for game_item in game.downloads if game_item.lang in valid_langs]
+        game.downloads = downloadslangs
+        
         for itm in game.downloads + game.extras:
             if itm.name is None:
                 continue
@@ -1091,7 +1146,7 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
                 if delete_on_fail and fail:
                     info('deleting %s' % itm_dirpath)
                     os.remove(itm_file)
-                    del_file_cnt += 1
+                    del_file_cnt += 1                
             else:
                 info('missing file %s' % itm_dirpath)
                 missing_cnt += 1
@@ -1178,16 +1233,16 @@ def main(args):
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.ids)
+        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.ids,args.os,args.lang)
     elif args.cmd == 'import':
-        cmd_import(args.src_dir, args.dest_dir)
+        cmd_import(args.src_dir, args.dest_dir,args.os,args.lang)
     elif args.cmd == 'verify':
         check_md5 = not args.skipmd5
         check_filesize = not args.skipsize
         check_zips = not args.skipzip
         cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete, args.ids, args.skipids)
     elif args.cmd == 'backup':
-        cmd_backup(args.src_dir, args.dest_dir)
+        cmd_backup(args.src_dir, args.dest_dir,args.skipextras,args.skipgames,args.os,args.lang)
     elif args.cmd == 'clean':
         cmd_clean(args.cleandir, args.dryrun)
 
