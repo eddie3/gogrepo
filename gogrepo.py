@@ -443,6 +443,13 @@ def filter_dlcs(item, dlc_list, lang_list, os_list):
         filter_extras(item.extras, dlc_dict['extras'])
         filter_dlcs(item, dlc_dict['dlcs'], lang_list, os_list)  # recursive
 
+def is_numeric_id(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False    
+
 
 def process_argv(argv):
     p1 = argparse.ArgumentParser(description='%s (%s)' % (__appname__, __url__), add_help=False)
@@ -709,7 +716,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
 
     if not idsOriginal and not updateonly and not skipknown:
         validIDs = [item.id for item in items]
-        invalidItems = [itemID for itemID in known_ids if itemID not in validIDs and itemID not in skipids]
+        invalidItems = [itemID for itemID in known_ids if itemID not in validIDs and str(itemID) not in skipids]
         if len(invalidItems) != 0: 
             warn('old games in manifest. Removing ...')
             for item in invalidItems:
@@ -719,23 +726,24 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
                     del gamesdb[item_idx]
     
     if ids and not updateonly and not skipknown:
-        invalidIDs = [int(id) for id in ids if int(id) in known_ids]
-        invalidTitles = [id for id in ids if id in known_titles]
+        invalidTitles = [id for id in ids if id in known_titles]    
+        invalidIDs = [int(id) for id in ids if is_numeric_id(id) and int(id) in known_ids]
         invalids = invalidIDs + invalidTitles
-        formattedInvalids =  ', '.join(map(str, invalids))        
-        warn(' game id(s) from {%s} were in your manifest but not your product data ' % formattedInvalids)
-        titlesToIDs = [(game.id,game.title) for game in gamesdb if game.title in invalidTitles]
-        for invalidID in invalidIDs:
-            warn('Removing id "{}" from manifest'.format(invalidID))
-            item_idx = item_checkdb(invalidID, gamesdb)
-            if item_idx is not None:
-                del gamesdb[item_idx]
-        for invalidID,invalidTitle in titlesToIDs:
-            warn('Removing id "{}" from manifest'.format(invalidTitle))
-            item_idx = item_checkdb(invalidID, gamesdb)
-            if item_idx is not None:
-                del gamesdb[item_idx]
-        save_manifest(gamesdb)
+        if invalids:
+            formattedInvalids =  ', '.join(map(str, invalids))        
+            warn(' game id(s) from {%s} were in your manifest but not your product data ' % formattedInvalids)
+            titlesToIDs = [(game.id,game.title) for game in gamesdb if game.title in invalidTitles]
+            for invalidID in invalidIDs:
+                warn('Removing id "{}" from manifest'.format(invalidID))
+                item_idx = item_checkdb(invalidID, gamesdb)
+                if item_idx is not None:
+                    del gamesdb[item_idx]
+            for invalidID,invalidTitle in titlesToIDs:
+                warn('Removing id "{}" from manifest'.format(invalidTitle))
+                item_idx = item_checkdb(invalidID, gamesdb)
+                if item_idx is not None:
+                    del gamesdb[item_idx]
+            save_manifest(gamesdb)
 
                     
     # bail if there's nothing to do
@@ -1083,11 +1091,10 @@ def cmd_backup(src_dir, dest_dir,skipextras,skipgames,os_list,lang_list):
         downloadsOS = [game_item for game_item in game.downloads if game_item.os_type in os_list]
         game.downloads = downloadsOS
 
-		
         valid_langs = []
         for lang in lang_list:
             valid_langs.append(LANG_TABLE[lang])
-		
+
         downloadslangs = [game_item for game_item in game.downloads if game_item.lang in valid_langs]
         game.downloads = downloadslangs
         
@@ -1159,7 +1166,6 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, c
         orphan_root_dir = os.path.join(gamedir, ORPHAN_DIR_NAME)
         if not os.path.isdir(orphan_root_dir):
             os.makedirs(orphan_root_dir)
-            return
 
         
         
