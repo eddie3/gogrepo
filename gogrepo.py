@@ -615,6 +615,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
     items = []
     item_count = 0
     known_ids = []
+    known_titles = []
     i = 0
     
     
@@ -626,13 +627,16 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
     api_url  = GOG_ACCOUNT_URL
     api_url += "/getFilteredProducts"
 
-    # Make convenient list of known ids
-    if skipknown:
-        for item in gamesdb:
-            known_ids.append(item.id)
+    # Make convenient list of known ids11
+    for item in gamesdb:
+        known_ids.append(item.id)
             
     idsOriginal = ids[:]       
 
+    for item in gamesdb:
+        known_titles.append(item.title)
+
+        
     # Fetch shelf data
     done = False
     while not done:
@@ -700,23 +704,58 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
                 
  
 
+    if not idsOriginal and not updateonly and not skipknown:
+        validIDs = [item.id for item in items]
+        invalidItems = [itemID for itemID in known_ids if itemID not in validIDs and itemID not in skipids]
+        if len(invalidItems) != 0: 
+            warn('old games in manifest. Removing ...')
+            for item in invalidItems:
+                warn('Removing id "{}" from manifest'.format(item))
+                item_idx = item_checkdb(item, gamesdb)
+                if item_idx is not None:
+                    del gamesdb[item_idx]
+    
+    if ids and not updateonly and not skipknown:
+        invalidIDs = [int(id) for id in ids if int(id) in known_ids]
+        invalidTitles = [id for id in ids if id in known_titles]
+        invalids = invalidIDs + invalidTitles
+        formattedInvalids =  ', '.join(map(str, invalids))        
+        warn(' game id(s) from {%s} were in your manifest but not your product data ' % formattedInvalids)
+        titlesToIDs = [(game.id,game.title) for game in gamesdb if game.title in invalidTitles]
+        for invalidID in invalidIDs:
+            warn('Removing id "{}" from manifest'.format(invalidID))
+            item_idx = item_checkdb(invalidID, gamesdb)
+            if item_idx is not None:
+                del gamesdb[item_idx]
+        for invalidID,invalidTitle in titlesToIDs:
+            warn('Removing id "{}" from manifest'.format(invalidTitle))
+            item_idx = item_checkdb(invalidID, gamesdb)
+            if item_idx is not None:
+                del gamesdb[item_idx]
+        save_manifest(gamesdb)
+
+                    
     # bail if there's nothing to do
-    if len(items) == 0:    
+    if len(items) == 0:
         if updateonly:
             warn('no new game updates found.')
         elif skipknown:
             warn('no new games found.')
         else:
             warn('nothing to do')
-        if ids:
+        if idsOriginal:
             formattedIds =  ', '.join(map(str, idsOriginal))        
             warn('with game id(s) from {%s}' % formattedIds)
         return
-
+        
+        
     items_count = len(items)
     print_padding = len(str(items_count))
-    if not ids and not updateonly and not skipknown:
+    if not idsOriginal and not updateonly and not skipknown:
         info('found %d games !!%s' % (items_count, '!'*int(items_count/100)))  # teehee
+        if skipids: 
+            formattedSkipIds =  ', '.join(map(str, skipids))        
+            info('not including game id(s) from {%s}' % formattedSkipIds)
 
     # fetch item details
     i = 0
