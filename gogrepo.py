@@ -1130,7 +1130,6 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, c
     clean_file_cnt = 0
 
     items = load_manifest()
-<<<<<<< HEAD
     
     games_to_check_base = sorted(items, key=lambda g: g.title)
 
@@ -1150,32 +1149,20 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, c
         if not games_to_check:
             formattedIds =  ', '.join(map(str, ids))                
             warn('no known files with ids in {%s} where found' % formattedIds)
-=======
-
+            return
+    else:
+        info('verifying all known files in the manifest')        
+        games_to_check =  games_to_check_base    
+    
     if clean_on_fail:
         # create orphan root dir
         orphan_root_dir = os.path.join(gamedir, ORPHAN_DIR_NAME)
         if not os.path.isdir(orphan_root_dir):
             os.makedirs(orphan_root_dir)
-    
-    
-    # filter items based on id
-    if id:
-        games_to_check = []
-        for game in sorted(items, key=lambda g: g.title):
-            if game.title == id or str(game.id) == id:
-                games_to_check.append(game)
-        if len(games_to_check) == 0:
-            warn('no known files with id "{}"'.format(id))
->>>>>>> refs/remotes/origin/verifyclean
             return
-        else:    
-            formattedTitles =  ', '.join(map(str, [game.title for game in games_to_check]))                
-            info('verifying known files from titles in {%s}' % formattedTitles)        
-    else:
-        info('verifying all known files in the manifest')        
-        games_to_check =  games_to_check_base    
 
+        
+        
     for game in games_to_check:
         for itm in game.downloads + game.extras:
             if itm.name is None:
