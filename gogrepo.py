@@ -783,13 +783,15 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
         return '%.2fGB' % (b / float(1024**3))
 
     if id:
-        for item in sorted(items, key=lambda g: g.title):
+        id_found = False
+        for item in items:
             if item.title == id:
-                oldlist = list(items)
-                items.remove(item)
-                newlist = [game for game in oldlist if game not in items]
-                items = newlist
+                items = [item]
+                id_found = True
                 break
+        if not id_found:
+            error('no game with id "{}" was found.'.format(id))
+            exit(1)
 
     if skipids:
         info("skipping games with id[s]: {%s}" % skipids)
