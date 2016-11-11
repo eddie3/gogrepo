@@ -599,7 +599,6 @@ def cmd_login(user, passwd):
 def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     media_type = GOG_MEDIA_TYPE_GAME
     items = []
-    item_count = 0
     known_ids = []
     i = 0
 
@@ -635,7 +634,9 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
 
             # Parse out the interesting fields and add to items dict
             for item_json_data in json_data['products']:
-                item_count += 1
+                # skip games marked as hidden
+                if item_json_data.get('isHidden', False) is True:
+                    continue
 
                 item = AttrDict()
                 item.id = item_json_data['id']
