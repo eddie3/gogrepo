@@ -465,6 +465,7 @@ def process_argv(argv):
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
     g1.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
     g1.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
+    g1.add_argument('-skippatches', action='store_true', help='skip downloading of any GOG patches')
     g1.add_argument('-id', action='store', help='id of the game in the manifest to download')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
@@ -768,7 +769,7 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
+def cmd_download(savedir, skipextras, skipgames, skipids, skippatches, dryrun, id):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
@@ -810,8 +811,16 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
         if skipextras:
             item.extras = []
 
-        if skipgames:
+        if skipgames or skippatches:
+            old_downloads = item.downloads
             item.downloads = []
+            for download in old_downloads:
+                if download['version'] is not None and ('->' in download['version'] or download['name'].startswith('patch')):  # This is a patch
+                    if not skippatches:
+                        item.downloads.append(download)
+                else:  # This is a game file
+                    if not skipgames:
+                        item.downloads.append(download)
 
         # Generate and save a game info text file
         if not dryrun:
@@ -1144,7 +1153,7 @@ def main(args):
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id)
+        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.skippatches, args.dryrun, args.id)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':
