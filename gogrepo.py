@@ -815,7 +815,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, skippatches, dryrun, i
             old_downloads = item.downloads
             item.downloads = []
             for download in old_downloads:
-                if download['version'] is not None and ('->' in download['version'] or download['name'].startswith('patch')):  # This is a patch
+                if (download['version'] is not None and '->' in download['version']) or download['name'].startswith('patch'):  # This is a patch
                     if not skippatches:
                         item.downloads.append(download)
                 else:  # This is a game file
