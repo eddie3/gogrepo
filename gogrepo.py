@@ -533,9 +533,9 @@ def cmd_login(user, passwd):
 
     # prompt for login/password if needed
     if login_data['user'] is None:
-        login_data['user'] = input("enter username: ")
+        login_data['user'] = input("Username: ")
     if login_data['passwd'] is None:
-        login_data['passwd'] = getpass.getpass("enter password: ")
+        login_data['passwd'] = getpass.getpass()
 
     info("attempting gog login as '{}' ...".format(login_data['user']))
 
