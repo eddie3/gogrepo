@@ -799,6 +799,20 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids,skipHidde
                 filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
                 filter_extras(item.extras, item_json_data['extras'])
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
+                existingNames = []
+                for update_item in item.downloads:
+                    count = existingNames.count(update_item.name)
+                    existingNames.append(update_item.name)
+                    if count is not 0:
+                       (root,ext) = os.path.splitext(update_item.name)
+                       update_item.name = root + "("+str(count) + ")" + ext
+                for update_item in item.extras:
+                    count = existingNames.count(update_item.name)
+                    existingNames.append(update_item.name)
+                    if count is not 0:
+                       (root,ext) = os.path.splitext(update_item.name)
+                       update_item.name = root + "("+str(count) + ")" + ext
+                    
 
                 # update gamesdb with new item
                 item_idx = item_checkdb(item.id, gamesdb)
@@ -894,9 +908,9 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, l
     if not items:
         if ids and skipids:
             error('no game(s) with id(s) in "{}" was found'.format(ids) + 'after skipping game(s) with id(s) in "{}".'.format(skipids))        
-        else if ids:
+        elif ids:
             error('no game with id in "{}" was found.'.format(ids))                
-        else if skipids:
+        elif skipids:
             error('no game was found was found after skipping game(s) with id(s) in "{}".'.format(skipids))      
         else:    
             error('no game found')      
@@ -1309,13 +1323,12 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        if (args.id)
-            print "args.id is set"
+        if (args.id):
             args.ids = [args.id]
-        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids,args.skipHidden)
+        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids,args.skiphidden)
     elif args.cmd == 'download':
-        if (args.id)
-            args.ids = [arg.id]    
+        if (args.id):
+            args.ids = [args.id]    
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
@@ -1323,8 +1336,8 @@ def main(args):
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir,args.os,args.lang)
     elif args.cmd == 'verify':
-        if (args.id)
-            args.ids = [arg.id]    
+        if (args.id):
+            args.ids = [args.id]    
         check_md5 = not args.skipmd5
         check_filesize = not args.skipsize
         check_zips = not args.skipzip
