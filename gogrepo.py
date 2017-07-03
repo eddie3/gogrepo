@@ -469,6 +469,7 @@ def process_argv(argv):
     g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
     g3.add_argument('-ids', action='store', help='id(s)/titles(s) of (a) specific game(s) not to update', nargs='*', default=[])
     g3.add_argument('-skipids', action='store', help='id(s)/titles(s) of (a) specific game(s) to update', nargs='*', default=[])
+    g3.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to download')
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')    
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
@@ -481,6 +482,7 @@ def process_argv(argv):
     g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
     g3.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to download', nargs='*', default=[])
     g3.add_argument('-skipids', action='store', help='id(s) or title(s) of the game(s) in the manifest to NOT download', nargs='*', default=[])
+    g3.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to download')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
 
@@ -507,8 +509,9 @@ def process_argv(argv):
     g2.add_argument('-delete', action='store_true', help='delete any files which fail integrity test')
     g2.add_argument('-clean', action='store_true', help='clean any files which fail integrity test')
     g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
-    g2.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to verify', nargs='*', default=[])
-    g2.add_argument('-skipids', action='store', help='id(s) or title(s) of the game[s] in the manifest to NOT verify', nargs='*', default=[])
+    g3.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to verify', nargs='*', default=[])
+    g3.add_argument('-skipids', action='store', help='id(s) or title(s) of the game[s] in the manifest to NOT verify', nargs='*', default=[])
+    g3.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to verify')    
 
 
     g1 = sp1.add_parser('clean', help='Clean your games directory of files not known by manifest')
@@ -1306,8 +1309,13 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
+        if (args.id)
+            print "args.id is set"
+            args.ids = [args.id]
         cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids,args.skipHidden)
     elif args.cmd == 'download':
+        if (args.id)
+            args.ids = [arg.id]    
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
@@ -1315,6 +1323,8 @@ def main(args):
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir,args.os,args.lang)
     elif args.cmd == 'verify':
+        if (args.id)
+            args.ids = [arg.id]    
         check_md5 = not args.skipmd5
         check_filesize = not args.skipsize
         check_zips = not args.skipzip
