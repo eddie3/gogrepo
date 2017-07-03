@@ -1247,8 +1247,8 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, c
     info('')
     info('--totals------------')
     info('known items......... %d' % item_count)
-    info('have items.......... %d' % (item_count - missing_cnt - del_file_cnt))
-    info('missing items....... %d' % (missing_cnt + del_file_cnt))
+    info('have items.......... %d' % (item_count - missing_cnt - del_file_cnt - clean_file_cnt))
+    info('missing items....... %d' % (missing_cnt + del_file_cnt + clean_file_cnt))
     if check_md5:
         info('md5 mismatches...... %d' % bad_md5_cnt)
     if check_filesize:
