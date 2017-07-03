@@ -462,6 +462,7 @@ def process_argv(argv):
     g1 = sp1.add_parser('update', help='Update locally saved game manifest from GOG server')
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
+    g1.add_argument('-skiphidden',action='store_true',help='skip games marked as hidden')
     g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
     g2.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
     g2.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
@@ -556,9 +557,9 @@ def cmd_login(user, passwd):
 
     # prompt for login/password if needed
     if login_data['user'] is None:
-        login_data['user'] = input("enter username: ")
+        login_data['user'] = input("Username: ")
     if login_data['passwd'] is None:
-        login_data['passwd'] = getpass.getpass("enter password: ")
+        login_data['passwd'] = getpass.getpass()
 
     info("attempting gog login as '{}' ...".format(login_data['user']))
 
@@ -620,14 +621,12 @@ def cmd_login(user, passwd):
         error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
+def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids,skipHidden):
     media_type = GOG_MEDIA_TYPE_GAME
     items = []
-    item_count = 0
     known_ids = []
     known_titles = []
     i = 0
-    
     
  
     load_cookies()
@@ -667,7 +666,9 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids):
 
             # Parse out the interesting fields and add to items dict
             for item_json_data in json_data['products']:
-                item_count += 1
+                # skip games marked as hidden
+                if skipHidden and (item_json_data.get('isHidden', False) is True):
+                    continue
 
                 item = AttrDict()
                 item.id = item_json_data['id']
@@ -879,12 +880,25 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, l
         info("downloading games with id(s): {%s}" % formattedIds)
         downloadItems = [item for item in items if item.title in ids or str(item.id) in ids]
         items = downloadItems
+        
 
     if skipids:
         formattedSkipIds =  ', '.join(map(str, skipids))
         info("skipping games with id(s): {%s}" % formattedSkipIds)
         downloadItems = [item for item in items if item.title not in skipids and str(item.id) not in skipids]
         items = downloadItems
+        
+    if not items:
+        if ids and skipids:
+            error('no game(s) with id(s) in "{}" was found'.format(ids) + 'after skipping game(s) with id(s) in "{}".'.format(skipids))        
+        else if ids:
+            error('no game with id in "{}" was found.'.format(ids))                
+        else if skipids:
+            error('no game was found was found after skipping game(s) with id(s) in "{}".'.format(skipids))      
+        else:    
+            error('no game found')      
+        exit(1)
+        
 
     # Find all items to be downloaded and push into work queue
     for item in sorted(items, key=lambda g: g.title):
@@ -1292,7 +1306,7 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids)
+        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids,args.skipHidden)
     elif args.cmd == 'download':
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
