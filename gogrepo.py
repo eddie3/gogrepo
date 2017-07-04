@@ -29,7 +29,7 @@ import datetime
 import shutil
 import socket
 import xml.etree.ElementTree
-
+import copy
 # python 2 / 3 imports
 try:
     # python 2
@@ -442,6 +442,59 @@ def filter_dlcs(item, dlc_list, lang_list, os_list):
         filter_downloads(item.downloads, dlc_dict['downloads'], lang_list, os_list)
         filter_extras(item.extras, dlc_dict['extras'])
         filter_dlcs(item, dlc_dict['dlcs'], lang_list, os_list)  # recursive
+        
+def deDuplicateList(duplicatedList,existingItems):   
+    deDuplicatedList = []
+    for update_item in duplicatedList:
+        if update_item.name is not None:                
+            dummy_item = copy.copy(update_item)
+            deDuplicatedName = deDuplicateName(dummy_item,existingItems)
+            if deDuplicatedName is not None:
+                if (update_item.name != deDuplicatedName):
+                    info('  -> ' + update_item.name + ' already exists in this game entry with a different size and/or md5, this file renamed to ' + deDuplicatedName)                        
+                    update_item.name = deDuplicatedName
+                deDuplicatedList.append(update_item)
+            else:
+                info('  -> ' + update_item.name + ' already exists in this game entry with same size/md5, skipping adding this file to the manifest') 
+        else: 
+            #Placeholder for an item coming soon, pass through
+            deDuplicatedList.append(update_item)
+    return deDuplicatedList        
+        
+        
+def deDuplicateName(potentialItem,clashDict):
+    try: 
+        #Check if Name Exists
+        existingList = clashDict[potentialItem.name] 
+        try:
+            #Check if this md5 / size pair have already been resolved
+            idx = existingList.index((potentialItem.md5,potentialItem.size))
+            return None
+        except ValueError:
+            root,ext = os.path.splitext(potentialItem.name)
+            if (ext != ".bin"):
+                potentialItem.name = root + "("+str(len(existingList)) + ")" + ext
+            else:
+                #bin file, adjust name to account for gogs weird extension method
+                setDelimiter = root.rfind("-")
+                try:
+                    setPart = int(root[setDelimiter+1:])
+                except ValueError:
+                    #This indicators a false positive. The "-" found was part of the file name not a set delimiter. 
+                    setDelimiter = -1 
+                if (setDelimiter == -1):
+                    #not part of a bin file set , some other binary file , treat it like a non .bin file
+                    potentialItem.name = root + "("+str(len(existingList)) + ")" + ext
+                else:    
+                    potentialItem.name = root[:setDelimiter] + "("+str(len(existingList)) + ")" + root[setDelimiter:] + ext
+            existingList.append((potentialItem.md5,potentialItem.size)) #Mark as resolved 
+            return deDuplicateName(potentialItem,clashDict)        
+    except KeyError:
+        #No Name Clash
+        clashDict[potentialItem.name] = [(potentialItem.md5,potentialItem.size)]
+        return potentialItem.name   
+        
+        
 
 def is_numeric_id(s):
     try:
@@ -799,20 +852,10 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids,skipHidde
                 filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
                 filter_extras(item.extras, item_json_data['extras'])
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
-                existingNames = []
-                for update_item in item.downloads:
-                    count = existingNames.count(update_item.name)
-                    existingNames.append(update_item.name)
-                    if count is not 0:
-                       (root,ext) = os.path.splitext(update_item.name)
-                       update_item.name = root + "("+str(count) + ")" + ext
-                for update_item in item.extras:
-                    count = existingNames.count(update_item.name)
-                    existingNames.append(update_item.name)
-                    if count is not 0:
-                       (root,ext) = os.path.splitext(update_item.name)
-                       update_item.name = root + "("+str(count) + ")" + ext
-                    
+                
+                existingItems = {}                
+                item.downloads = deDuplicateList(item.downloads,existingItems)  
+                item.extras = deDuplicateList(item.extras,existingItems)
 
                 # update gamesdb with new item
                 item_idx = item_checkdb(item.id, gamesdb)
