@@ -30,6 +30,7 @@ import shutil
 import socket
 import xml.etree.ElementTree
 import copy
+import logging.handlers
 # python 2 / 3 imports
 try:
     # python 2
@@ -69,6 +70,8 @@ logFormatter = logging.Formatter("%(asctime)s | %(message)s", datefmt='%H:%M:%S'
 rootLogger = logging.getLogger('ws')
 rootLogger.setLevel(logging.DEBUG)
 consoleHandler = logging.StreamHandler(sys.stdout)
+loggingHandler = logging.handlers.RotatingFileHandler('gogrepo.log', mode='a', maxBytes = 104857600 , backupCount = 10,  encoding=None, delay=True)
+loggingHandler.setFormatter(logFormatter)
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
 
@@ -440,6 +443,7 @@ def filter_dlcs(item, dlc_list, lang_list, os_list):
     """
     for dlc_dict in dlc_list:
         filter_downloads(item.downloads, dlc_dict['downloads'], lang_list, os_list)
+        filter_downloads(item.galaxyDownloads, item_json_data['galaxyDownloads'], lang_list, os_list)                        
         filter_extras(item.extras, dlc_dict['extras'])
         filter_dlcs(item, dlc_dict['dlcs'], lang_list, os_list)  # recursive
         
@@ -511,47 +515,93 @@ def process_argv(argv):
     g1 = sp1.add_parser('login', help='Login to GOG and save a local copy of your authenticated cookie')
     g1.add_argument('username', action='store', help='GOG username/email', nargs='?', default=None)
     g1.add_argument('password', action='store', help='GOG password', nargs='?', default=None)
+    g1.add_argument('-nolog', action='store_true', help = 'doesn\'t writes log file gogrepo.log')
+    
 
     g1 = sp1.add_parser('update', help='Update locally saved game manifest from GOG server')
-    g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
-    g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
+    g2 = g1.add_mutually_exclusive_group()
+    g2.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=[])
+    g2.add_argument('-skipos', action='store', help='skip operating system(s)', nargs='*', default=[])  
+    g3 = g1.add_mutually_exclusive_group()
+    g3.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=[])
+    g3.add_argument('-skiplang', action='store', help='skip game language(s)', nargs='*', default=[])      
     g1.add_argument('-skiphidden',action='store_true',help='skip games marked as hidden')
-    g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
-    g2.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
-    g2.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
-    g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
-    g3.add_argument('-ids', action='store', help='id(s)/titles(s) of (a) specific game(s) not to update', nargs='*', default=[])
-    g3.add_argument('-skipids', action='store', help='id(s)/titles(s) of (a) specific game(s) to update', nargs='*', default=[])
-    g3.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to download')
+    g1.add_argument('-installers', action='store', choices = ['galaxy','standalone','both'], default = 'standalone',  help='GOG Installer type to use: galaxy, standalone or both. Default: standalone ')    
+    g4 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g4.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
+    g4.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
+    g5 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g5.add_argument('-ids', action='store', help='id(s)/titles(s) of (a) specific game(s) not to update', nargs='*', default=[])
+    g5.add_argument('-skipids', action='store', help='id(s)/titles(s) of (a) specific game(s) to update', nargs='*', default=[])
+    g5.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to download')
+    g1.add_argument('-wait', action='store', type=float,
+                    help='wait this long in hours before starting', default=0.0)  # sleep in hr
+    g1.add_argument('-nolog', action='store_true', help = 'doesn\'t writes log file gogrepo.log')
+                    
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')    
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
-    g1.add_argument('-os', action='store', help='download game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
-    g1.add_argument('-lang', action='store', help='download game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)    
+    g1.add_argument('-skipgalaxy', action='store_true', help='skip downloading Galaxy installers')
+    g1.add_argument('-skipstandalone', action='store_true', help='skip downloading standlone installers')
+    g1.add_argument('-skipshared', action = 'store_true', help ='skip downloading installers shared between Galaxy and standalone')
     g2 = g1.add_mutually_exclusive_group()
     g2.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
-    g2.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
-    g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
+    g2.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files (deprecated, use -skipgalaxy -skipstandalone -skipshared instead)')
+    g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
     g3.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to download', nargs='*', default=[])
     g3.add_argument('-skipids', action='store', help='id(s) or title(s) of the game(s) in the manifest to NOT download', nargs='*', default=[])
     g3.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to download')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
+    g4 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
+    g4.add_argument('-skipos', action='store', help='skip downloading game files for operating system(s)', nargs='*', default=[x for x in VALID_OS_TYPES if x not in DEFAULT_OS_LIST])  
+    g4.add_argument('-os', action='store', help='download game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST) 
+    g5 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
+    g5.add_argument('-lang', action='store', help='download game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)    
+    g5.add_argument('-skiplang', action='store', help='skip downloading game files for language(s)', nargs='*', default=[x for x in VALID_LANG_TYPES if x not in DEFAULT_LANG_LIST])  
+    g1.add_argument('-nolog', action='store_true', help = 'doesn\'t writes log file gogrepo.log')
 
+                    
+                    
     g1 = sp1.add_parser('import', help='Import files with any matching MD5 checksums found in manifest')
     g1.add_argument('src_dir', action='store', help='source directory to import games from')
     g1.add_argument('dest_dir', action='store', help='directory to copy and name imported files to')
-    g1.add_argument('-os', action='store', help='import game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
-    g1.add_argument('-lang', action='store', help='import game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)        
+    g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive        
+    g2.add_argument('-skipos', action='store', help='skip importing game files for operating system(s)', nargs='*', default=[x for x in VALID_OS_TYPES if x not in DEFAULT_OS_LIST])  
+    g2.add_argument('-os', action='store', help='import game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
+    g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
+    g3.add_argument('-skiplang', action='store', help='skip importing game files for language(s)', nargs='*', default=[x for x in VALID_LANG_TYPES if x not in DEFAULT_LANG_LIST])        
+    g3.add_argument('-lang', action='store', help='import game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)       
+    #Code path available but commented out and hardcoded as false due to lack of MD5s on extras. 
+    #g4 = g1.add_mutually_exclusive_group()
+    #g4.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
+    #g4.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files (deprecated, use -skipgalaxy -skipstandalone -skipshared instead)')
+    g1.add_argument('-nolog', action='store_true', help = 'doesn\'t writes log file gogrepo.log')
+    g1.add_argument('-skipgalaxy', action='store_true', help='skip downloading Galaxy installers')
+    g1.add_argument('-skipstandalone', action='store_true', help='skip downloading standlone installers')
+    g1.add_argument('-skipshared', action = 'store_true', help ='skip downloading installers shared between Galaxy and standalone')
+    g5 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
+    g5.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to import', nargs='*', default=[])
+    g5.add_argument('-skipids', action='store', help='id(s) or title(s) of the game(s) in the manifest to NOT import', nargs='*', default=[])
+    
 
     g1 = sp1.add_parser('backup', help='Perform an incremental backup to specified directory')
     g1.add_argument('src_dir', action='store', help='source directory containing gog items')
     g1.add_argument('dest_dir', action='store', help='destination directory to backup files to')
-    g1.add_argument('-os', action='store', help='backup game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
-    g1.add_argument('-lang', action='store', help='backup game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)        
-    g1.add_argument('-skipextras', action='store_true', help='skip backup of any GOG extra files')
-    g1.add_argument('-skipgames', action='store_true', help='skip backup of any GOG game files')
+    g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive        
+    g2.add_argument('-skipos', action='store', help='skip backup of game files for operating system(s)', nargs='*', default=[x for x in VALID_OS_TYPES if x not in DEFAULT_OS_LIST])  
+    g2.add_argument('-os', action='store', help='backup game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
+    g3 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
+    g3.add_argument('-skiplang', action='store', help='skip backup of game files for language(s)', nargs='*', default=[x for x in VALID_LANG_TYPES if x not in DEFAULT_LANG_LIST])        
+    g3.add_argument('-lang', action='store', help='backup game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)        
+    g4 = g1.add_mutually_exclusive_group()
+    g4.add_argument('-skipextras', action='store_true', help='skip backup of any GOG extra files')
+    g4.add_argument('-skipgames', action='store_true', help='skip backup of any GOG game files')
+    g1.add_argument('-skipgalaxy',action='store_true', help='skip backup of any GOG Galaxy installer files')
+    g1.add_argument('-skipstandalone',action='store_true', help='skip backup of any GOG standalone installer files')
+    g1.add_argument('-skipshared',action='store_true',help ='skip backup of any installers included in both the GOG Galalaxy and Standalone sets')
+    g1.add_argument('-nolog', action='store_true', help = 'doesn\'t writes log file gogrepo.log')
 
     g1 = sp1.add_parser('verify', help='Scan your downloaded GOG files and verify their size, MD5, and zip integrity')
     g1.add_argument('gamedir', action='store', help='directory containing games to verify', nargs='?', default='.')
@@ -565,11 +615,25 @@ def process_argv(argv):
     g3.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to verify', nargs='*', default=[])
     g3.add_argument('-skipids', action='store', help='id(s) or title(s) of the game[s] in the manifest to NOT verify', nargs='*', default=[])
     g3.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to verify')    
+    g4 = g1.add_mutually_exclusive_group()  # below are mutually exclusive        
+    g4.add_argument('-skipos', action='store', help='skip verification of game files for operating system(s)', nargs='*', default=[x for x in VALID_OS_TYPES if x not in DEFAULT_OS_LIST])  
+    g4.add_argument('-os', action='store', help='verify game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
+    g5 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
+    g5.add_argument('-skiplang', action='store', help='skip verification of game files for language(s)', nargs='*', default=[x for x in VALID_LANG_TYPES if x not in DEFAULT_LANG_LIST])        
+    g5.add_argument('-lang', action='store', help='verify game files only for language(s)', nargs='*', default=DEFAULT_LANG_LIST)        
+    g6 = g1.add_mutually_exclusive_group()
+    g6.add_argument('-skipextras', action='store_true', help='skip verification of any GOG extra files')
+    g6.add_argument('-skipgames', action='store_true', help='skip verification of any GOG game files')
+    g1.add_argument('-skipgalaxy',action='store_true', help='skip verification of any GOG Galaxy installer files')
+    g1.add_argument('-skipstandalone',action='store_true', help='skip verification of any GOG standalone installer files')
+    g1.add_argument('-skipshared',action='store_true',help ='skip verification of any installers included in both the GOG Galalaxy and Standalone sets')
+    g1.add_argument('-nolog', action='store_true', help = 'doesn\'t writes log file gogrepo.log')
 
 
     g1 = sp1.add_parser('clean', help='Clean your games directory of files not known by manifest')
     g1.add_argument('cleandir', action='store', help='root directory containing gog games to be cleaned')
     g1.add_argument('-dryrun', action='store_true', help='do not move files, only display what would be cleaned')
+    g1.add_argument('-nolog', action='store_true', help = 'doesn\'t writes log file gogrepo.log')
 
     g1 = p1.add_argument_group('other')
     g1.add_argument('-h', '--help', action='help', help='show help message and exit')
@@ -578,14 +642,17 @@ def process_argv(argv):
 
     # parse the given argv.  raises SystemExit on error
     args = p1.parse_args(argv[1:])
+    
+    if not args.nolog:
+        rootLogger.addHandler(loggingHandler)
 
-    if args.cmd == 'update' or args.cmd == 'download' or args.cmd == 'backup' or args.cmd == 'import':
-        for lang in args.lang:  # validate the language
+    if args.cmd == 'update' or args.cmd == 'download' or args.cmd == 'backup' or args.cmd == 'import' or args.cmd == 'verify':
+        for lang in args.lang+args.skiplang:  # validate the language
             if lang not in VALID_LANG_TYPES:
                 error('error: specified language "%s" is not one of the valid languages %s' % (lang, VALID_LANG_TYPES))
                 raise SystemExit(1)
 
-        for os_type in args.os:  # validate the os type
+        for os_type in args.os+args.skipos:  # validate the os type
             if os_type not in VALID_OS_TYPES:
                 error('error: specified os "%s" is not one of the valid os types %s' % (os_type, VALID_OS_TYPES))
                 raise SystemExit(1)
@@ -677,7 +744,7 @@ def cmd_login(user, passwd):
         error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids,skipHidden):
+def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids,skipHidden,installers):
     media_type = GOG_MEDIA_TYPE_GAME
     items = []
     known_ids = []
@@ -846,16 +913,37 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids,skipHidde
                 item.release_timestamp = item_json_data['releaseTimestamp']
                 item.gog_messages = item_json_data['messages']
                 item.downloads = []
+                item.galaxyDownloads = []
+                item.sharedDownloads = []
                 item.extras = []
 
                 # parse json data for downloads/extras/dlcs
                 filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
+                filter_downloads(item.galaxyDownloads, item_json_data['galaxyDownloads'], lang_list, os_list)                
                 filter_extras(item.extras, item_json_data['extras'])
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
                 
+                
+                #Indepent Deduplication to make sure there are no doubles within galaxyDownloads or downloads to avoid weird stuff with the comprehenstion.
+                item.downloads = deDuplicateList(item.downloads,{})  
+                item.galaxyDownloads = deDuplicateList(item.galaxyDownloads,{}) 
+                
+                item.sharedDownloads = [x for x in item.downloads if x in item.galaxyDownloads]
+                if (installers=='galaxy'):
+                    item.downloads = []
+                else:
+                    item.downloads = [x for x in item.downloads if x not in item.sharedDownloads]
+                if (installers=='standalone'):
+                    item.galaxyDownloads = []
+                else:        
+                    item.galaxyDownloads = [x for x in item.galaxyDownloads if x not in item.sharedDownloads]
+                                
                 existingItems = {}                
                 item.downloads = deDuplicateList(item.downloads,existingItems)  
+                item.galaxyDownloads = deDuplicateList(item.galaxyDownloads,existingItems) 
+                item.sharedDownloads = deDuplicateList(item.sharedDownloads,existingItems)                 
                 item.extras = deDuplicateList(item.extras,existingItems)
+                
 
                 # update gamesdb with new item
                 item_idx = item_checkdb(item.id, gamesdb)
@@ -872,7 +960,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, ids, skipids,skipHidde
     save_manifest(gamesdb)
 
 
-def cmd_import(src_dir, dest_dir,os_list,lang_list):
+def cmd_import(src_dir, dest_dir,os_list,lang_list,skipextras,skipids,ids,skipgalaxy,skipstandalone,skipshared):
     """Recursively finds all files within root_dir and compares their MD5 values
     against known md5 values from the manifest.  If a match is found, the file will be copied
     into the game storage dir.
@@ -887,12 +975,32 @@ def cmd_import(src_dir, dest_dir,os_list,lang_list):
         valid_langs.append(LANG_TABLE[lang])
         
     for game in gamesdb:
-        for game_item in game.downloads:
+        if skipgalaxy:
+            game.galaxyDownloads = []
+        if skipstandalone:
+            game.downloads = []
+        if skipshared:
+            game.sharedDownloads = []
+        if skipextras:
+            game.extras = []
+        if not (game.title in ids) and not (str(game.id) in ids):
+            continue
+        if game.title in skipids or str(game.id) in skipids:
+            continue
+        for game_item in game.downloads+game.galaxyDownloads+game.sharedDownloads:
             if game_item.md5 is not None:
                 if game_item.lang in valid_langs:
                     if game_item.os_type in os_list:
                         md5_info[game_item.md5] = (game.title, game_item.name)
-
+        #Note that Extras currently have unusual Lang / OS entries that are also accepted.  
+        valid_langs_extras = valid_langs + [u'']
+        valid_os_extras = valid_os + [u'extra']
+        for extra_item in game.extras:
+            if game_item.md5 is not None:
+                if game_item.lang in valid_langs_extras:
+                    if game_item.os_type in os_list_extras:            
+                        md5_info[extra_item.md5] = (game.title, extra_item.name)
+        
     info("searching for files within '%s'" % src_dir)
     file_list = []
     for (root, dirnames, filenames) in os.walk(src_dir):
@@ -920,7 +1028,7 @@ def cmd_import(src_dir, dest_dir,os_list,lang_list):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, lang_list):
+def cmd_download(savedir, skipextras,skipids, dryrun, ids,os_list, lang_list,skipgalaxy,skipstandalone,skipshared):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
@@ -971,15 +1079,28 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, l
         if skipextras:
             item.extras = []
             
+        if skipstandalone:    
+            item.downloads = []
+            
+        if skipgalaxy:
+            item.galaxyDownloads = []
+            
+        if skipshared:
+            item.sharedDownloads = []
             
 
-        if skipgames:
-            item.downloads = []
-
         
-        downloadsOS = [game_item for game_item in item.downloads if game_item.os_type in os_list]
+        
+        downloadsOS = [game_item for game_item in  item.downloads if game_item.os_type in os_list]
         item.downloads = downloadsOS
         #print(item.downloads)
+        
+        downloadsOS = [game_item for game_item in  item.galaxyDownloads if game_item.os_type in os_list]
+        item.galaxyDownloads = downloadsOS
+
+        downloadsOS = [game_item for game_item in  item.sharedDownloads if game_item.os_type in os_list]
+        item.sharedDownloads = downloadsOS
+        
 
         # hold list of valid languages languages as known by gogapi json stuff
         valid_langs = []
@@ -987,9 +1108,15 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, l
             valid_langs.append(LANG_TABLE[lang])
 
         
-        downloadslangs = [game_item for game_item in item.downloads if game_item.lang in valid_langs]
+        downloadslangs = [game_item for game_item in  item.downloads if game_item.lang in valid_langs]
         item.downloads = downloadslangs
         #print(item.downloads)
+
+        downloadslangs = [game_item for game_item in  item.galaxyDownloads if game_item.lang in valid_langs]
+        item.galaxyDownloads = downloadslangs
+
+        downloadslangs = [game_item for game_item in  item.sharedDownloads if game_item.lang in valid_langs]
+        item.sharedDownloads = downloadslangs
         
 
         # Generate and save a game info text file
@@ -1011,10 +1138,24 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, l
                     for gog_msg in item.gog_messages:
                         fd_info.write(u'{0}{1}{0}'.format(os.linesep, html2text(gog_msg).strip()))
                 fd_info.write(u'{0}game items.....:{0}{0}'.format(os.linesep))
+                if len(item.downloads) > 0:
+                    fd_info.write(u'{0}standalone.........:{0}{0}'.format(os.linesep))                
                 for game_item in item.downloads:
                     fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
                     if game_item.version:
                         fd_info.write(u'        version: {}{}'.format(game_item.version, os.linesep))
+                if len(item.galaxyDownloads) > 0:
+                    fd_info.write(u'{0}galaxy.........:{0}{0}'.format(os.linesep))                                        
+                for game_item in item.galaxyDownloads:
+                    fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
+                    if game_item.version:
+                        fd_info.write(u'        version: {}{}'.format(game_item.version, os.linesep))
+                if len(item.sharedDownloads) > 0:                        
+                    fd_info.write(u'{0}shared.........:{0}{0}'.format(os.linesep))                                        
+                for game_item in item.sharedDownloads:
+                    fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
+                    if game_item.version:
+                        fd_info.write(u'        version: {}{}'.format(game_item.version, os.linesep))                        
                 if len(item.extras) > 0:
                     fd_info.write(u'{0}extras.........:{0}{0}'.format(os.linesep))
                     for game_item in item.extras:
@@ -1034,7 +1175,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, l
                     
 
         # Populate queue with all files to be downloaded
-        for game_item in item.downloads + item.extras:
+        for game_item in item.downloads + item.galaxyDownloads + item.sharedDownloads + item.extras:
             if game_item.name is None:
                 continue  # no game name, usually due to 404 during file fetch
             dest_file = os.path.join(item_homedir, game_item.name)
@@ -1147,7 +1288,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, ids,os_list, l
         raise
 
 
-def cmd_backup(src_dir, dest_dir,skipextras,skipgames,os_list,lang_list):
+def cmd_backup(src_dir, dest_dir,skipextras,os_list,lang_list,ids,skipids,skipgalaxy,skipstandalone,skipshared):
     gamesdb = load_manifest()
 
     info('finding all known files in the manifest')
@@ -1157,13 +1298,30 @@ def cmd_backup(src_dir, dest_dir,skipextras,skipgames,os_list,lang_list):
         if skipextras:
             game.extras = []
             
-            
-
-        if skipgames:
+        if skipstandalone: 
             game.downloads = []
-
+            
+        if skipgalaxy:
+            game.galaxyDownloads = []
+            
+        if skipshared:
+            game.sharedDownloads = []
+            
+        if not (game.title in ids) and not (str(game.id) in ids):
+            continue
+        if game.title in skipids or str(game.id) in skipids:
+            continue
+    
+                        
         downloadsOS = [game_item for game_item in game.downloads if game_item.os_type in os_list]
         game.downloads = downloadsOS
+        
+        downloadsOS = [game_item for game_item in game.galaxyDownloads if game_item.os_type in os_list]
+        game.galaxyDownloads = downloadsOS
+        
+        downloadsOS = [game_item for game_item in game.sharedDownloads if game_item.os_type in os_list]
+        game.sharedDownloads = downloadsOS
+                
 
         valid_langs = []
         for lang in lang_list:
@@ -1172,9 +1330,18 @@ def cmd_backup(src_dir, dest_dir,skipextras,skipgames,os_list,lang_list):
         downloadslangs = [game_item for game_item in game.downloads if game_item.lang in valid_langs]
         game.downloads = downloadslangs
         
-        for itm in game.downloads + game.extras:
+        downloadslangs = [game_item for game_item in game.galaxyDownloads if game_item.lang in valid_langs]
+        game.galaxyDownloads = downloadslangs
+
+        downloadslangs = [game_item for game_item in game.sharedDownloads if game_item.lang in valid_langs]
+        game.sharedDownloads = downloadslangs
+        
+        
+        for itm in game.downloads + game.galaxyDownloads + game.sharedDownloads + game.extras:
             if itm.name is None:
                 continue
+                
+                
 
             src_game_dir = os.path.join(src_dir, game.title)
             src_file = os.path.join(src_game_dir, itm.name)
@@ -1199,7 +1366,7 @@ def cmd_backup(src_dir, dest_dir,skipextras,skipgames,os_list,lang_list):
                     shutil.copy(os.path.join(src_game_dir, extra_file), dest_game_dir)
 
 
-def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, clean_on_fail, ids, skipids):
+def cmd_verify(gamedir, skipextras, skipids,  check_md5, check_filesize, check_zips, delete_on_fail, clean_on_fail, ids, os_list, lang_list, skipgalaxy,skipstandalone,skipshared):
     """Verifies all game files match manifest with any available md5 & file size info
     """
     item_count = 0
@@ -1244,7 +1411,49 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, c
         
         
     for game in games_to_check:
-        for itm in game.downloads + game.extras:
+        if skipextras:
+            game.extras = []
+            
+        if skipstandalone: 
+            game.downloads = []
+            
+        if skipgalaxy:
+            game.galaxyDownloads = []
+            
+        if skipshared:
+            game.sharedDownloads = []
+            
+        if not (game.title in ids) and not (str(game.id) in ids):
+            continue
+        if game.title in skipids or str(game.id) in skipids:
+            continue
+    
+                        
+        downloadsOS = [game_item for game_item in game.downloads if game_item.os_type in os_list]
+        game.downloads = downloadsOS
+        
+        downloadsOS = [game_item for game_item in game.galaxyDownloads if game_item.os_type in os_list]
+        game.galaxyDownloads = downloadsOS
+        
+        downloadsOS = [game_item for game_item in game.sharedDownloads if game_item.os_type in os_list]
+        game.sharedDownloads = downloadsOS
+                
+
+        valid_langs = []
+        for lang in lang_list:
+            valid_langs.append(LANG_TABLE[lang])
+
+        downloadslangs = [game_item for game_item in game.downloads if game_item.lang in valid_langs]
+        game.downloads = downloadslangs
+        
+        downloadslangs = [game_item for game_item in game.galaxyDownloads if game_item.lang in valid_langs]
+        game.galaxyDownloads = downloadslangs
+
+        downloadslangs = [game_item for game_item in game.sharedDownloads if game_item.lang in valid_langs]
+        game.sharedDownloads = downloadslangs
+    
+    
+        for itm in game.downloads + game.galaxyDownloads + game.sharedDownloads +game.extras:
             if itm.name is None:
                 warn('no known filename for "%s (%s)"' % (game.title, itm.desc))
                 continue
@@ -1333,7 +1542,7 @@ def cmd_clean(cleandir, dryrun):
             else:
                 # dir is valid game folder, check its files
                 expected_filenames = []
-                for game_item in items_by_title[cur_dir].downloads + items_by_title[cur_dir].extras:
+                for game_item in items_by_title[cur_dir].downloads + items_by_title[cur_dir].galaxyDownloads + items_by_title[cur_dir].sharedDownloads + items_by_title[cur_dir].extras:
                     expected_filenames.append(game_item.name)
                 for cur_dir_file in os.listdir(cur_fulldir):
                     if os.path.isdir(os.path.join(cleandir, cur_dir, cur_dir_file)):
@@ -1368,25 +1577,97 @@ def main(args):
     elif args.cmd == 'update':
         if (args.id):
             args.ids = [args.id]
-        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids,args.skiphidden)
+        if not args.os:    
+            if args.skipos:
+                args.os = [x for x in VALID_OS_TYPES if x not in args.skipos]
+            else:
+                args.os = DEFAULT_OS_LIST
+        if not args.lang:    
+            if args.skiplang:
+                args.lang = [x for x in VALID_LANG_TYPES if x not in args.skiplang]
+            else:
+                args.lang = DEFAULT_LANG_LIST
+        if args.wait > 0.0:
+            info('sleeping for %.2fhr...' % args.wait)
+            time.sleep(args.wait * 60 * 60)                
+        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.ids, args.skipids,args.skiphidden,args.installers)
     elif args.cmd == 'download':
         if (args.id):
-            args.ids = [args.id]    
+            args.ids = [args.id]
+        if not args.os:    
+            if args.skipos:
+                args.os = [x for x in VALID_OS_TYPES if x not in args.skipos]
+            else:
+                args.os = VALID_OS_TYPES
+        if not args.lang:    
+            if args.skiplang:
+                args.lang = [x for x in VALID_LANG_TYPES if x not in args.skiplang]
+            else:
+                args.lang = VALID_LANG_TYPES
+        if args.skipgames:
+            args.skipstandalone = True
+            args.skipgalaxy = True
+            args.skipshared = True
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.ids,args.os,args.lang)
+        cmd_download(args.savedir, args.skipextras, args.skipids, args.dryrun, args.ids,args.os,args.lang,args.skipgalaxy,args.skipstandalone,args.skipshared)
     elif args.cmd == 'import':
-        cmd_import(args.src_dir, args.dest_dir,args.os,args.lang)
+        #Hardcode these as false since extras currently do not have MD5s as such skipgames would give nothing and skipextras would change nothing. The logic path and arguments are present in case this changes, though commented out in the case of arguments)
+        args.skipgames = False
+        args.skipextras = False
+        if not args.os:  
+            if args.skipos:
+                args.os = [x for x in VALID_OS_TYPES if x not in args.skipos]
+            else:
+                args.os = VALID_OS_TYPES
+        if not args.lang:    
+            if args.skiplang:
+                args.lang = [x for x in VALID_LANG_TYPES if x not in args.skiplang]
+            else:
+                args.lang = VALID_LANG_TYPES  
+        if args.skipgames:
+            args.skipstandalone = True
+            args.skipgalaxy = True
+            args.skipshared = True
+        cmd_import(args.src_dir, args.dest_dir,args.os,args.lang,args.skipextras,args.skipids,args.ids,args.skipgalaxy,args.skipstandalone,args.skipshared)
     elif args.cmd == 'verify':
         if (args.id):
             args.ids = [args.id]    
+        if not args.os:    
+            if args.skipos:
+                args.os = [x for x in VALID_OS_TYPES if x not in args.skipos]
+            else:
+                args.os = VALID_OS_TYPES
+        if not args.lang:    
+            if args.skiplang:
+                args.lang = [x for x in VALID_LANG_TYPES if x not in args.skiplang]
+            else:
+                args.lang = VALID_LANG_TYPES
+        if args.skipgames:
+            args.skipstandalone = True
+            args.skipgalaxy = True
+            args.skipshared = True                
         check_md5 = not args.skipmd5
         check_filesize = not args.skipsize
         check_zips = not args.skipzip
-        cmd_verify(args.gamedir, check_md5, check_filesize, check_zips, args.delete, args.clean, args.ids, args.skipids)
+        cmd_verify(args.gamedir, args.skipextras,args.skipids,check_md5, check_filesize, check_zips, args.delete, args.clean,args.ids,  args.os, args.lang,args.skipgalaxy,args.skipstandalone,args.skipshared)
     elif args.cmd == 'backup':
-        cmd_backup(args.src_dir, args.dest_dir,args.skipextras,args.skipgames,args.os,args.lang)
+        if not args.os:    
+            if args.skipos:
+                args.os = [x for x in VALID_OS_TYPES if x not in args.skipos]
+            else:
+                args.os = VALID_OS_TYPES
+        if not args.lang:    
+            if args.skiplang:
+                args.lang = [x for x in VALID_LANG_TYPES if x not in args.skiplang]
+            else:
+                args.lang = VALID_LANG_TYPES
+        if args.skipgames:
+            args.skipstandalone = True
+            args.skipgalaxy = True
+            args.skipshared = True
+        cmd_backup(args.src_dir, args.dest_dir,args.skipextras,args.os,args.lang,args.ids,args.skipids,args.skipgalaxy,args.skipstandalone,args.skipshared)
     elif args.cmd == 'clean':
         cmd_clean(args.cleandir, args.dryrun)
 
