@@ -1139,19 +1139,19 @@ def cmd_download(savedir, skipextras,skipids, dryrun, ids,os_list, lang_list,ski
                         fd_info.write(u'{0}{1}{0}'.format(os.linesep, html2text(gog_msg).strip()))
                 fd_info.write(u'{0}game items.....:{0}{0}'.format(os.linesep))
                 if len(item.downloads) > 0:
-                    fd_info.write(u'{0}standalone.........:{0}{0}'.format(os.linesep))                
+                    fd_info.write(u'{0}..standalone...:{0}{0}'.format(os.linesep))                
                 for game_item in item.downloads:
                     fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
                     if game_item.version:
                         fd_info.write(u'        version: {}{}'.format(game_item.version, os.linesep))
                 if len(item.galaxyDownloads) > 0:
-                    fd_info.write(u'{0}galaxy.........:{0}{0}'.format(os.linesep))                                        
+                    fd_info.write(u'{0}..galaxy.......:{0}{0}'.format(os.linesep))                                        
                 for game_item in item.galaxyDownloads:
                     fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
                     if game_item.version:
                         fd_info.write(u'        version: {}{}'.format(game_item.version, os.linesep))
                 if len(item.sharedDownloads) > 0:                        
-                    fd_info.write(u'{0}shared.........:{0}{0}'.format(os.linesep))                                        
+                    fd_info.write(u'{0}..shared.......:{0}{0}'.format(os.linesep))                                        
                 for game_item in item.sharedDownloads:
                     fd_info.write(u'    [{}] -- {}{}'.format(game_item.name, game_item.desc, os.linesep))
                     if game_item.version:
