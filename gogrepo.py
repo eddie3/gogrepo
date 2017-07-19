@@ -1075,6 +1075,16 @@ def cmd_download(savedir, skipextras,skipids, dryrun, ids,os_list, lang_list,ski
         if not dryrun:
             if not os.path.isdir(item_homedir):
                 os.makedirs(item_homedir)
+                
+        try:
+            _ = item.galaxyDownloads
+        except KeyError:
+            item.galaxyDownloads = []
+            
+        try:
+            a = item.sharedDownloads
+        except KeyError:
+            item.sharedDownloads = []
 
         if skipextras:
             item.extras = []
@@ -1082,15 +1092,13 @@ def cmd_download(savedir, skipextras,skipids, dryrun, ids,os_list, lang_list,ski
         if skipstandalone:    
             item.downloads = []
             
-        if skipgalaxy:
+        if skipgalaxy: 
             item.galaxyDownloads = []
             
         if skipshared:
             item.sharedDownloads = []
+                    
             
-
-        
-        
         downloadsOS = [game_item for game_item in  item.downloads if game_item.os_type in os_list]
         item.downloads = downloadsOS
         #print(item.downloads)
