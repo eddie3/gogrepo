@@ -443,7 +443,7 @@ def filter_dlcs(item, dlc_list, lang_list, os_list):
     """
     for dlc_dict in dlc_list:
         filter_downloads(item.downloads, dlc_dict['downloads'], lang_list, os_list)
-        filter_downloads(item.galaxyDownloads, item_json_data['galaxyDownloads'], lang_list, os_list)                        
+        filter_downloads(item.galaxyDownloads, dlc_dict['galaxyDownloads'], lang_list, os_list)                        
         filter_extras(item.extras, dlc_dict['extras'])
         filter_dlcs(item, dlc_dict['dlcs'], lang_list, os_list)  # recursive
         
@@ -975,6 +975,17 @@ def cmd_import(src_dir, dest_dir,os_list,lang_list,skipextras,skipids,ids,skipga
         valid_langs.append(LANG_TABLE[lang])
         
     for game in gamesdb:
+        try:
+            _ = item.galaxyDownloads
+        except KeyError:
+            item.galaxyDownloads = []
+            
+        try:
+            a = item.sharedDownloads
+        except KeyError:
+            item.sharedDownloads = []
+    
+    
         if skipgalaxy:
             game.galaxyDownloads = []
         if skipstandalone:
@@ -983,7 +994,9 @@ def cmd_import(src_dir, dest_dir,os_list,lang_list,skipextras,skipids,ids,skipga
             game.sharedDownloads = []
         if skipextras:
             game.extras = []
-        if not (game.title in ids) and not (str(game.id) in ids):
+                        
+            
+        if ids and not (game.title in ids) and not (str(game.id) in ids):
             continue
         if game.title in skipids or str(game.id) in skipids:
             continue
@@ -1302,6 +1315,17 @@ def cmd_backup(src_dir, dest_dir,skipextras,os_list,lang_list,ids,skipids,skipga
     info('finding all known files in the manifest')
     for game in sorted(gamesdb, key=lambda g: g.title):
         touched = False
+        
+        try:
+            _ = item.galaxyDownloads
+        except KeyError:
+            item.galaxyDownloads = []
+            
+        try:
+            a = item.sharedDownloads
+        except KeyError:
+            item.sharedDownloads = []
+        
 
         if skipextras:
             game.extras = []
@@ -1315,7 +1339,7 @@ def cmd_backup(src_dir, dest_dir,skipextras,os_list,lang_list,ids,skipids,skipga
         if skipshared:
             game.sharedDownloads = []
             
-        if not (game.title in ids) and not (str(game.id) in ids):
+        if ids and not (game.title in ids) and not (str(game.id) in ids):
             continue
         if game.title in skipids or str(game.id) in skipids:
             continue
@@ -1430,12 +1454,7 @@ def cmd_verify(gamedir, skipextras, skipids,  check_md5, check_filesize, check_z
             
         if skipshared:
             game.sharedDownloads = []
-            
-        if not (game.title in ids) and not (str(game.id) in ids):
-            continue
-        if game.title in skipids or str(game.id) in skipids:
-            continue
-    
+                
                         
         downloadsOS = [game_item for game_item in game.downloads if game_item.os_type in os_list]
         game.downloads = downloadsOS
