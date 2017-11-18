@@ -37,7 +37,7 @@ try:
     from Queue import Queue
     import cookielib as cookiejar
     from httplib import BadStatusLine
-    from urlparse import urlparse
+    from urlparse import urlparse,unquote
     from urllib import urlencode
     from urllib2 import HTTPError, URLError, HTTPCookieProcessor, build_opener, Request
     from itertools import izip_longest as zip_longest
@@ -47,7 +47,7 @@ except ImportError:
     from queue import Queue
     import http.cookiejar as cookiejar
     from http.client import BadStatusLine
-    from urllib.parse import urlparse, urlencode
+    from urllib.parse import urlparse, urlencode, unquote
     from urllib.request import HTTPCookieProcessor, HTTPError, URLError, build_opener, Request
     from itertools import zip_longest
     from io import StringIO
@@ -70,7 +70,7 @@ logFormatter = logging.Formatter("%(asctime)s | %(message)s", datefmt='%H:%M:%S'
 rootLogger = logging.getLogger('ws')
 rootLogger.setLevel(logging.DEBUG)
 consoleHandler = logging.StreamHandler(sys.stdout)
-loggingHandler = logging.handlers.RotatingFileHandler('gogrepo.log', mode='a', maxBytes = 104857600 , backupCount = 10,  encoding=None, delay=True)
+loggingHandler = logging.handlers.RotatingFileHandler('gogrepo.log', mode='a+', maxBytes = 10485760 , backupCount = 10,  encoding=None, delay=True)
 loggingHandler.setFormatter(logFormatter)
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
@@ -196,8 +196,11 @@ class AttrDict(dict):
         self.update(kw)
 
     def __getattr__(self, key):
-        return self[key]
-
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(key)
+            
     def __setattr__(self, key, val):
         self[key] = val
 
@@ -354,7 +357,7 @@ def handle_game_updates(olditem, newitem):
 def fetch_file_info(d, fetch_md5):
     # fetch file name/size
     with request(d.href, byte_range=(0, 0)) as page:
-        d.name = urlparse(page.geturl()).path.split('/')[-1]
+        d.name = unquote(urlparse(page.geturl()).path.split('/')[-1])
         d.size = int(page.headers['Content-Range'].split('/')[-1])
 
         # fetch file md5
@@ -400,7 +403,8 @@ def filter_downloads(out_list, downloads_list, lang_list, os_list):
                                      href=GOG_HOME_URL + download['manualUrl'],
                                      md5=None,
                                      name=None,
-                                     size=None
+                                     size=None,
+                                     prev_verified=False
                                      )
                         try:
                             fetch_file_info(d, True)
@@ -425,6 +429,7 @@ def filter_extras(out_list, extras_list):
                      md5=None,
                      name=None,
                      size=None,
+                     prev_verified=False
                      )
         try:
             fetch_file_info(d, False)
@@ -531,8 +536,8 @@ def process_argv(argv):
     g4.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
     g4.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
     g5 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
-    g5.add_argument('-ids', action='store', help='id(s)/titles(s) of (a) specific game(s) not to update', nargs='*', default=[])
-    g5.add_argument('-skipids', action='store', help='id(s)/titles(s) of (a) specific game(s) to update', nargs='*', default=[])
+    g5.add_argument('-ids', action='store', help='id(s)/titles(s) of (a) specific game(s) to update', nargs='*', default=[])
+    g5.add_argument('-skipids', action='store', help='id(s)/titles(s) of (a) specific game(s) not to update', nargs='*', default=[])
     g5.add_argument('-id', action='store', help='(deprecated) id or title of the game in the manifest to download')
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
@@ -1484,6 +1489,8 @@ def cmd_verify(gamedir, skipextras, skipids,  check_md5, check_filesize, check_z
             if itm.name is None:
                 warn('no known filename for "%s (%s)"' % (game.title, itm.desc))
                 continue
+                
+            #if itm.prev_verified    
 
             item_count += 1
 
@@ -1508,6 +1515,7 @@ def cmd_verify(gamedir, skipextras, skipids,  check_md5, check_filesize, check_z
                     if not test_zipfile(itm_file):
                         info('zip test failed for %s' % itm_dirpath)
                         bad_zip_cnt += 1
+                        fail = True
                 if delete_on_fail and fail:
                     info('deleting %s' % itm_dirpath)
                     os.remove(itm_file)
@@ -1519,6 +1527,17 @@ def cmd_verify(gamedir, skipextras, skipids,  check_md5, check_filesize, check_z
                     if not os.path.isdir(dest_dir):
                         os.makedirs(dest_dir)
                     shutil.move(itm_file, dest_dir)
+                if not fail:
+                    itm.prev_verified= True;
+                else:
+                    itm.prev_verified=False;
+                item_idx = item_checkdb(game.id, items)
+                if item_idx is not None:
+                    handle_game_updates(items[item_idx], item)
+                    gamesdb[item_idx] = item
+                else:
+                    warn("We are verifying an item that's not in the DB ???")
+                #ToDo: Update gamesdb here. And fix update to not erase this unless file has changed.    
             else:
                 info('missing file %s' % itm_dirpath)
                 missing_cnt += 1
