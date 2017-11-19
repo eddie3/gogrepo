@@ -594,6 +594,9 @@ def process_argv(argv):
     g1 = sp1.add_parser('backup', help='Perform an incremental backup to specified directory')
     g1.add_argument('src_dir', action='store', help='source directory containing gog items')
     g1.add_argument('dest_dir', action='store', help='destination directory to backup files to')
+    g5 = g1.add_mutually_exclusive_group()  # below are mutually exclusive    
+    g5.add_argument('-ids', action='store', help='id(s) or title(s) of the game in the manifest to backup', nargs='*', default=[])
+    g5.add_argument('-skipids', action='store', help='id(s) or title(s) of the game(s) in the manifest to NOT backup', nargs='*', default=[])    
     g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive        
     g2.add_argument('-skipos', action='store', help='skip backup of game files for operating system(s)', nargs='*', default=[x for x in VALID_OS_TYPES if x not in DEFAULT_OS_LIST])  
     g2.add_argument('-os', action='store', help='backup game files only for operating system(s)', nargs='*', default=DEFAULT_OS_LIST)  
@@ -981,14 +984,14 @@ def cmd_import(src_dir, dest_dir,os_list,lang_list,skipextras,skipids,ids,skipga
         
     for game in gamesdb:
         try:
-            _ = item.galaxyDownloads
+            _ = game.galaxyDownloads
         except KeyError:
-            item.galaxyDownloads = []
+            game.galaxyDownloads = []
             
         try:
-            a = item.sharedDownloads
+            a = game.sharedDownloads
         except KeyError:
-            item.sharedDownloads = []
+            game.sharedDownloads = []
     
     
         if skipgalaxy:
@@ -1012,11 +1015,11 @@ def cmd_import(src_dir, dest_dir,os_list,lang_list,skipextras,skipids,ids,skipga
                         md5_info[game_item.md5] = (game.title, game_item.name)
         #Note that Extras currently have unusual Lang / OS entries that are also accepted.  
         valid_langs_extras = valid_langs + [u'']
-        valid_os_extras = valid_os + [u'extra']
+        valid_os_extras = os_list + [u'extra']
         for extra_item in game.extras:
             if game_item.md5 is not None:
                 if game_item.lang in valid_langs_extras:
-                    if game_item.os_type in os_list_extras:            
+                    if game_item.os_type in valid_os_extras:            
                         md5_info[extra_item.md5] = (game.title, extra_item.name)
         
     info("searching for files within '%s'" % src_dir)
@@ -1322,14 +1325,14 @@ def cmd_backup(src_dir, dest_dir,skipextras,os_list,lang_list,ids,skipids,skipga
         touched = False
         
         try:
-            _ = item.galaxyDownloads
+            _ = game.galaxyDownloads
         except KeyError:
-            item.galaxyDownloads = []
+            game.galaxyDownloads = []
             
         try:
-            a = item.sharedDownloads
+            a = game.sharedDownloads
         except KeyError:
-            item.sharedDownloads = []
+            game.sharedDownloads = []
         
 
         if skipextras:
@@ -1533,8 +1536,8 @@ def cmd_verify(gamedir, skipextras, skipids,  check_md5, check_filesize, check_z
                     itm.prev_verified=False;
                 item_idx = item_checkdb(game.id, items)
                 if item_idx is not None:
-                    handle_game_updates(items[item_idx], item)
-                    gamesdb[item_idx] = item
+                    handle_game_updates(items[item_idx], game)
+                    items[item_idx] = game
                 else:
                     warn("We are verifying an item that's not in the DB ???")
                 #ToDo: Update gamesdb here. And fix update to not erase this unless file has changed.    
