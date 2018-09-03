@@ -37,7 +37,7 @@ try:
     import cookielib as cookiejar
     from httplib import BadStatusLine
     from urlparse import urlparse
-    from urllib import urlencode
+    from urllib import urlencode, unquote
     from urllib2 import HTTPError, URLError, HTTPCookieProcessor, build_opener, Request
     from itertools import izip_longest as zip_longest
     from StringIO import StringIO
@@ -46,7 +46,7 @@ except ImportError:
     from queue import Queue
     import http.cookiejar as cookiejar
     from http.client import BadStatusLine
-    from urllib.parse import urlparse, urlencode
+    from urllib.parse import urlparse, urlencode, unquote
     from urllib.request import HTTPCookieProcessor, HTTPError, URLError, build_opener, Request
     from itertools import zip_longest
     from io import StringIO
@@ -351,7 +351,7 @@ def handle_game_updates(olditem, newitem):
 def fetch_file_info(d, fetch_md5):
     # fetch file name/size
     with request(d.href, byte_range=(0, 0)) as page:
-        d.name = urlparse(page.geturl()).path.split('/')[-1]
+        d.name = unquote(urlparse(page.geturl()).path.split('/')[-1])
         d.size = int(page.headers['Content-Range'].split('/')[-1])
 
         # fetch file md5
