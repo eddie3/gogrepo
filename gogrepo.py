@@ -543,7 +543,7 @@ def cmd_login(user, passwd):
         etree = html5lib.parse(page, namespaceHTMLElements=False)
         for elm in etree.findall('.//script'):
             if elm.text is not None and 'GalaxyAccounts' in elm.text:
-                login_data['auth_url'] = elm.text.split("'")[1]
+                login_data['auth_url'] = elm.text.split("'")[3]
                 break
 
     # fetch the login token
