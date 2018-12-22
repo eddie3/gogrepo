@@ -29,6 +29,7 @@ import datetime
 import shutil
 import socket
 import xml.etree.ElementTree
+import requests
 
 # python 2 / 3 imports
 try:
@@ -233,7 +234,7 @@ def load_cookies():
     try:
         global_cookies.load()
         return
-    except IOError:
+    except:
         pass
 
     # try to import as mozilla 'cookies.txt' format
@@ -244,12 +245,19 @@ def load_cookies():
             global_cookies.set_cookie(c)
         global_cookies.save()
         return
-    except IOError:
+    except:
         pass
 
     error('failed to load cookies, did you login first?')
     raise SystemExit(1)
 
+def refreshCookies():
+	mySession = requests.Session()
+	mySession.headers={'User-Agent':__appname__ + __version__}
+	load_cookies()
+	mySession.cookies.update(global_cookies)
+	global_cookies.save()
+	return mySession
 
 def load_manifest(filepath=MANIFEST_FILENAME):
     info('loading local manifest...')
@@ -602,7 +610,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
     known_ids = []
     i = 0
 
-    load_cookies()
+    mySession = refreshCookies()
 
     gamesdb = load_manifest()
 
@@ -772,7 +780,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
-    load_cookies()
+    mySession = refreshCookies()
 
     items = load_manifest()
     work_dict = dict()
