@@ -622,9 +622,12 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
             info('fetching game product data (page %d)...' % i)
         else:
             info('fetching game product data (page %d / %d)...' % (i, json_data['totalPages']))
-        with request(api_url, args={'mediaType': media_type,
-                                    'sortBy': 'title',  # sort order
-                                    'page': str(i)}, delay=0) as data_request:
+
+        url = api_url + "?" + urlencode({'mediaType': media_type,
+                                         'sortBy': 'title',
+                                         'page': str(i)})
+
+        with request(url, delay=0) as data_request:
             reader = codecs.getreader("utf-8")
             try:
                 json_data = json.load(reader(data_request))
