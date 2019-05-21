@@ -550,7 +550,7 @@ def cmd_login(user, passwd):
     with request(login_data['auth_url'], delay=0) as page:
         etree = html5lib.parse(page, namespaceHTMLElements=False)
         # Bail if we find a request for a reCAPTCHA
-        if len(etree.findall('.//div[@class="g-recaptcha"]')) > 0:
+        if len(etree.findall('.//div[@class="g-recaptcha form__recaptcha"]')) > 0:
             error("cannot continue, gog is asking for a reCAPTCHA :(  try again in a few minutes.")
             return
         for elm in etree.findall('.//input'):
