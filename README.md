@@ -40,6 +40,16 @@ Quick Start -- Typical Use Case
 
   ``gogrepo.py verify``
 
+Running in a Docker container
+----------------
+
+Update the path accordingly. See 'Quick Start' and 'Advanced usage' for available commands.
+
+```
+docker run -it --rm -v /path/to/your/storage/gogrepo:/srv pierreroudier/gogrepo:latest command
+
+```
+
 Advanced Usage -- Common Tasks
 ----------------
 
