@@ -47,7 +47,6 @@ Update the path accordingly. See 'Quick Start' and 'Advanced usage' for availabl
 
 ```
 docker run -it --rm -v /path/to/your/storage/gogrepo:/srv pierreroudier/gogrepo:latest command
-
 ```
 
 Advanced Usage -- Common Tasks
