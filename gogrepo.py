@@ -464,6 +464,8 @@ def process_argv(argv):
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
     g1.add_argument('-dryrun', action='store_true', help='display, but skip downloading of any files')
     g1.add_argument('-skipextras', action='store_true', help='skip downloading of any GOG extra files')
+    g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
+    g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
     g1.add_argument('-skipgames', action='store_true', help='skip downloading of any GOG game files')
     g1.add_argument('-id', action='store', help='id of the game in the manifest to download')
     g1.add_argument('-wait', action='store', type=float,
@@ -771,7 +773,7 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
+def cmd_download(os_list, lang_list, savedir, skipextras, skipgames, skipids, dryrun, id):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
@@ -802,10 +804,17 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
         ignore_list = skipids.split(",")
         items[:] = [item for item in items if item.title not in ignore_list]
 
+    # Cull items which aren't in our selected language or operating system
+    for item in items:
+        item.downloads[:] = [each for each in item.downloads if each.os_type in os_list]
+        item.downloads[:] = [each for each in item.downloads if list(LANG_TABLE.keys())[list(LANG_TABLE.values()).index(each.lang)] in lang_list]
+
     # Find all items to be downloaded and push into work queue
     for item in sorted(items, key=lambda g: g.title):
         info("{%s}" % item.title)
         item_homedir = os.path.join(savedir, item.title)
+
+
         if not dryrun:
             if not os.path.isdir(item_homedir):
                 os.makedirs(item_homedir)
@@ -1147,7 +1156,7 @@ def main(args):
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id)
+        cmd_download(args.os, args.lang, args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':
