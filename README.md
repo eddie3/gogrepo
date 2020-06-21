@@ -2,7 +2,7 @@ gogrepo
 -------
 Python-based tool for downloading your GOG.com game collections and extras to your local computer for full offline enjoyment.
 
-It is a clean standalone python script that can be run from anywhere. It requires a typical Python 2.7 installation and html5lib.
+It is a clean standalone python script that can be run from anywhere. It requires a typical Python 3 installation and html5lib.
 
 By default, game folders are saved in the same location that the script is run in. You can also specify another
 directory. Run gogrepo.py -h to see help or read more below. Each game has its own directories with all game/bonus files saved within.
@@ -140,7 +140,7 @@ new GOG folder with clean game directory names and file names as GOG has them na
 
 --
 
-``gogrepo.py removeold`` List outdated installers/extras and provide an option to delete.
+``gogrepo.py removeold`` List outdated installers/extras and provide an option to delete them.
 
     removeold [-h] src_dir -savetxt -delete
     src_dir     directory containing installers/extras to check against the manifest
@@ -157,13 +157,3 @@ Requirements
 I recommend you use `pip` to install the above python modules. 
 
   ``pip install html5lib html2text``
-
-TODO
-----
-* ~~add ability to update and download specific games or new-items only~~
-* ~~add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files~~
-* support resuming manifest updating
-* ~~add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information~~
-* ability to customize/remap default game directory name
-* add GOG movie support
-* ... feel free to contact me with ideas or feature requests!
