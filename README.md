@@ -16,6 +16,7 @@ Features
 * Creates a !serial.txt if the game has a special serial/cdkey (I know, not 100% DRM-free, is it?). Sometimes coupon codes are hidden here!
 * Verify your downloaded collection with full MD5, zip integrity, and expected file size checking.
 * Auto retrying of failed fetch/downloads. Sometime GOG servers report temporary errors.
+* Check library for outdated installers and only keep most up-to-date versions
 * Ability to import your already existing local collection.
 * Easy to throw into a daily cronjob to get all the latest updates and newly added content!
 * Clear logging prints showing update/download progress and HTTP errors. Easy to pipe or tee to create a log file.
@@ -39,6 +40,10 @@ Quick Start -- Typical Use Case
 * Verify and report integrity of all downloaded files. Does MD5, zip integrity, and expected filesize verification. This makes sure your game files can actually be read back and are healthy.
 
   ``gogrepo.py verify``
+  
+* Compare the downloaded installers and extras against the latest versions available from GOG.
+
+  ``gogrepo.py removeold``
 
 Advanced Usage -- Common Tasks
 ----------------
@@ -58,6 +63,10 @@ Advanced Usage -- Common Tasks
 * Download a single game in your manifest.
 
   ``gogrepo.py download -id trine_2_complete_story``
+  
+* Check for previous versions of installers for a single game and delete them
+
+  ``gogrepo.py removeold trine_2_complete_story -delete``
 
 Commands
 --------
@@ -129,10 +138,19 @@ new GOG folder with clean game directory names and file names as GOG has them na
     dest_dir    destination directory to backup files to
     -h, --help  show this help message and exit
 
+--
+
+``gogrepo.py removeold`` List outdated installers/extras and provide an option to delete.
+
+    removeold [-h] src_dir -savetxt -delete
+    src_dir     directory containing installers/extras to check against the manifest
+    -savetxt    save a text file listing the names of the most recent versions of installers and extras
+    -delete     remove files and display what has been removed
+    -h, --help  show this help message and exit
 
 Requirements
 ------------
-* Python 2.7 (Python 3 support coming soon)
+* Python 3
 * html5lib 0.99999 (https://github.com/html5lib/html5lib-python)
 * html2text 2015.6.21 (https://pypi.python.org/pypi/html2text) (optional, used for prettying up gog game changelog html)
 
@@ -143,7 +161,7 @@ I recommend you use `pip` to install the above python modules.
 TODO
 ----
 * ~~add ability to update and download specific games or new-items only~~
-* add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files
+* ~~add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files~~
 * support resuming manifest updating
 * ~~add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information~~
 * ability to customize/remap default game directory name
