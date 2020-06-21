@@ -16,7 +16,7 @@ Features
 * Creates a !serial.txt if the game has a special serial/cdkey (I know, not 100% DRM-free, is it?). Sometimes coupon codes are hidden here!
 * Verify your downloaded collection with full MD5, zip integrity, and expected file size checking.
 * Auto retrying of failed fetch/downloads. Sometime GOG servers report temporary errors.
-* Check library for outdated installers and only keep most up-to-date versions
+* Check library for outdated installers and only keep most up-to-date versions.
 * Ability to import your already existing local collection.
 * Easy to throw into a daily cronjob to get all the latest updates and newly added content!
 * Clear logging prints showing update/download progress and HTTP errors. Easy to pipe or tee to create a log file.
@@ -43,7 +43,7 @@ Quick Start -- Typical Use Case
   
 * Compare the downloaded installers and extras against the latest versions available from GOG.
 
-  ``gogrepo.py removeold``
+  ``gogrepo.py outdated``
 
 Advanced Usage -- Common Tasks
 ----------------
@@ -64,9 +64,9 @@ Advanced Usage -- Common Tasks
 
   ``gogrepo.py download -id trine_2_complete_story``
   
-* Check for previous versions of installers for a single game and delete them
+* Check for previous versions of installers for a single game and, if found, delete them.
 
-  ``gogrepo.py removeold trine_2_complete_story -delete``
+  ``gogrepo.py outdated trine_2_complete_story -delete``
 
 Commands
 --------
@@ -140,9 +140,9 @@ new GOG folder with clean game directory names and file names as GOG has them na
 
 --
 
-``gogrepo.py removeold`` List outdated installers/extras and provide an option to delete them.
+``gogrepo.py outdated`` List outdated installers/extras and provide an option to delete them.
 
-    removeold [-h] src_dir -savetxt -delete
+    outdated [-h] src_dir -savetxt -delete
     src_dir     directory containing installers/extras to check against the manifest
     -savetxt    save a text file listing the names of the most recent versions of installers and extras
     -delete     remove files and display what has been removed
