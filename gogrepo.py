@@ -517,7 +517,7 @@ def process_argv(argv):
                     help='Do not move files, only display what would be cleaned')
     
     g1 = sp1.add_parser(
-        'removeold', help='List outdated installers/extras and provide option to delete')
+        'outdated', help='List outdated installers/extras and provide option to delete')
     g1.add_argument('src_dir', action='store', 
                     help='Root directory containing installers/extras to check against the manifest', nargs='?', default='.')
     g1.add_argument('-savetxt', action='store_true',
@@ -1217,7 +1217,7 @@ def cmd_clean(cleandir, dryrun):
     else:
         info('There is nothing to clean. Everything is nice and tidy!')
 
-def cmd_removeold(src_dir, savetxt, delete):
+def cmd_outdated(src_dir, savetxt, delete):
     # Find all installer & extras filenames in gogmanifest.dat
     with open(MANIFEST_FILENAME, encoding="utf8") as text_file:    
         LatestInstallers = re.findall(r'\:\s\'(.*\.(?:exe|bin|zip|tar\.gz|sh|pkg|dmg))', text_file.read())
@@ -1294,8 +1294,8 @@ def main(args):
         cmd_backup(args.src_dir, args.dest_dir)
     elif args.cmd == 'clean':
         cmd_clean(args.cleandir, args.dryrun)
-    elif args.cmd == 'removeold':
-        cmd_removeold(args.src_dir, args.savetxt, args.delete)
+    elif args.cmd == 'outdated':
+        cmd_outdated(args.src_dir, args.savetxt, args.delete)
 
     etime = datetime.datetime.now()
     info('--')
