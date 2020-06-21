@@ -1241,24 +1241,24 @@ def cmd_removeold(src_dir, savetxt, delete):
             if os.path.isfile(path):
                 if name not in LatestInstallers:
                     OutdatedFiles = OutdatedFiles + 1
-                    print(path)
+                    info(path)
 
     # Nothing old found      
-    if OutdatedFiles == 0: print("\nThere is nothing to remove.\n")
+    if OutdatedFiles == 0: info("There is nothing to remove.")
 
     # Old files found
-    if OutdatedFiles == 1: print("\nThere is 1 outdated file.\n")
+    if OutdatedFiles == 1: info("There is 1 outdated file.")
     if OutdatedFiles > 1: 
-        print("\nThere are %s outdated files.\n" %OutdatedFiles)
+        info("There are %s outdated files." %OutdatedFiles)
         if delete: 
             for root, dirs, files in os.walk(src_dir):
                 for name in files:
                     path = os.path.join(root, name)
                     if os.path.isfile(path):
                         if name not in LatestInstallers:
-                            print("Removed: ", path)
+                            info('Removed: %s' % path)
                             os.remove(path) 
-            print("\nYour library has been cleaned")
+            info("Your library has been cleaned")
 
 
 """This function checks the manifest for the filenames of the latest installers
