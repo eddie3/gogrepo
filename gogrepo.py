@@ -1219,7 +1219,6 @@ def cmd_clean(cleandir, dryrun):
 
 def cmd_removeold(src_dir, savetxt, delete):
     # Find all installer & extras filenames in gogmanifest.dat
-    #with open('.\gog-manifest.dat', 'r', encoding="utf8") as text_file:    
     with open(MANIFEST_FILENAME, encoding="utf8") as text_file:    
         LatestInstallers = re.findall(r'\:\s\'(.*\.(?:exe|bin|zip|tar\.gz|sh|pkg|dmg))', text_file.read())
 
