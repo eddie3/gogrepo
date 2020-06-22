@@ -142,7 +142,7 @@ new GOG folder with clean game directory names and file names as GOG has them na
 
 ``gogrepo.py outdated`` List outdated installers/extras and provide an option to delete them.
 
-    outdated [-h] src_dir -savetxt -delete
+    outdated [-h] [-src_dir] [-savetxt] [-delete]
     -src_dir     directory containing installers/extras to check against the manifest
     -savetxt    save a text file listing the names of the most recent versions of installers and extras
     -delete     remove files and display what has been removed
