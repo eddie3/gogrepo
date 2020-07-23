@@ -4,9 +4,9 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
 
-__appname__ = 'gogrepo.py'
+__appname__ = 'GOGrepo.py'
 __author__ = 'eddie3'
-__version__ = '0.3a'
+__version__ = '0.3b'
 __url__ = 'https://github.com/eddie3/gogrepo'
 
 # imports
@@ -329,15 +329,15 @@ def item_checkdb(search_id, gamesdb):
 
 def handle_game_updates(olditem, newitem):
     if newitem.has_updates:
-        info('  -> gog flagged this game as updated')
+        info('  -> GOG server flagged this game as updated')
 
     if olditem.title != newitem.title:
-        info('  -> title has changed "{}" -> "{}"'.format(olditem.title, newitem.title))
+        info('  -> title has changed: "{}" -> "{}"'.format(olditem.title, newitem.title))
         # TODO: rename the game directory
 
     if olditem.long_title != newitem.long_title:
         try:
-            info('  -> long title has change "{}" -> "{}"'.format(olditem.long_title, newitem.long_title))
+            info('  -> long title has changed: "{}" -> "{}"'.format(olditem.long_title, newitem.long_title))
         except UnicodeEncodeError:
             pass
 
@@ -452,13 +452,13 @@ def process_argv(argv):
     g1.add_argument('username', action='store', help='GOG username/email', nargs='?', default=None)
     g1.add_argument('password', action='store', help='GOG password', nargs='?', default=None)
 
-    g1 = sp1.add_parser('update', help='Update locally saved game manifest from GOG server')
+    g1 = sp1.add_parser('update', help='Update local manifest with latest information from GOG server')
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
     g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
     g2.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
     g2.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
-    g2.add_argument('-id', action='store', help='id/dirname of a specific game to update')
+    g2.add_argument('-id', action='store', help='directory name of a specific game to update')
 
     g1 = sp1.add_parser('download', help='Download all your GOG games and extra files')
     g1.add_argument('savedir', action='store', help='directory to save downloads to', nargs='?', default='.')
@@ -475,10 +475,10 @@ def process_argv(argv):
     g1.add_argument('dest_dir', action='store', help='directory to copy and name imported files to')
 
     g1 = sp1.add_parser('backup', help='Perform an incremental backup to specified directory')
-    g1.add_argument('src_dir', action='store', help='source directory containing gog items')
-    g1.add_argument('dest_dir', action='store', help='destination directory to backup files to')
+    g1.add_argument('src_dir', action='store', help='source directory containing GOG directories')
+    g1.add_argument('dest_dir', action='store', help='destination directory to store the backup')
 
-    g1 = sp1.add_parser('verify', help='Scan your downloaded GOG files and verify their size, MD5, and zip integrity')
+    g1 = sp1.add_parser('verify', help='Scan your downloaded GOG files and verify their size, MD5 checksum, and zip integrity')
     g1.add_argument('gamedir', action='store', help='directory containing games to verify', nargs='?', default='.')
     g1.add_argument('-id', action='store', help='id of a specific game to verify')
     g1.add_argument('-skipmd5', action='store_true', help='do not perform MD5 check')
@@ -487,8 +487,8 @@ def process_argv(argv):
     g1.add_argument('-delete', action='store_true', help='delete any files which fail integrity test')
 
     g1 = sp1.add_parser('clean', help='Clean your games directory of files not known by manifest')
-    g1.add_argument('cleandir', action='store', help='root directory containing gog games to be cleaned')
-    g1.add_argument('-dryrun', action='store_true', help='do not move files, only display what would be cleaned')
+    g1.add_argument('cleandir', action='store', help='root directory containing GOG games to be cleaned')
+    g1.add_argument('-dryrun', action='store_true', help='do not move files; only display what would be cleaned')
 
     g1 = p1.add_argument_group('other')
     g1.add_argument('-h', '--help', action='help', help='show help message and exit')
@@ -534,9 +534,9 @@ def cmd_login(user, passwd):
     if login_data['user'] is None:
         login_data['user'] = input("Username: ")
     if login_data['passwd'] is None:
-        login_data['passwd'] = getpass.getpass()
+       login_data['passwd'] = getpass.getpass()
 
-    info("attempting gog login as '{}' ...".format(login_data['user']))
+    info("attempting GOG login as '{}' ...".format(login_data['user']))
 
     # fetch the auth url
     with request(GOG_HOME_URL, delay=0) as page:
@@ -551,7 +551,7 @@ def cmd_login(user, passwd):
         etree = html5lib.parse(page, namespaceHTMLElements=False)
         # Bail if we find a request for a reCAPTCHA
         if len(etree.findall('.//div[@class="g-recaptcha form__recaptcha"]')) > 0:
-            error("cannot continue, gog is asking for a reCAPTCHA :(  try again in a few minutes.")
+            error("cannot continue, GOG is asking for a reCAPTCHA :(  try again in a few minutes.")
             return
         for elm in etree.findall('.//input'):
             if elm.attrib['id'] == 'login__token':
@@ -1011,6 +1011,10 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
     bad_size_cnt = 0
     bad_zip_cnt = 0
     del_file_cnt = 0
+    missingList = []
+    badMD5List = []
+    badZIPList = []
+    badSizeList = []
 
     items = load_manifest()
 
@@ -1047,16 +1051,19 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
                     if itm.md5 != hashfile(itm_file):
                         info('mismatched md5 for %s' % itm_dirpath)
                         bad_md5_cnt += 1
+                        badMD5List.append(itm_dirpath)
                         fail = True
                 if check_filesize and itm.size is not None:
                     if itm.size != os.path.getsize(itm_file):
                         info('mismatched file size for %s' % itm_dirpath)
                         bad_size_cnt += 1
+                        badSizeList.append(itm_dirpath)
                         fail = True
                 if check_zips and itm.name.lower().endswith('.zip'):
                     if not test_zipfile(itm_file):
                         info('zip test failed for %s' % itm_dirpath)
                         bad_zip_cnt += 1
+                        badZIPList.append(itm_dirpath)
                 if delete_on_fail and fail:
                     info('deleting %s' % itm_dirpath)
                     os.remove(itm_file)
@@ -1064,18 +1071,39 @@ def cmd_verify(gamedir, check_md5, check_filesize, check_zips, delete_on_fail, i
             else:
                 info('missing file %s' % itm_dirpath)
                 missing_cnt += 1
+                missingList.append(itm_dirpath)
 
     info('')
     info('--totals------------')
     info('known items......... %d' % item_count)
     info('have items.......... %d' % (item_count - missing_cnt - del_file_cnt))
     info('missing items....... %d' % (missing_cnt + del_file_cnt))
+    if missingList:
+        info('------------------------------------')
+        for x in missingList:
+	        info(x)
+        info('------------------------------------')
     if check_md5:
         info('md5 mismatches...... %d' % bad_md5_cnt)
+        if badMD5List:
+           info('------------------------------------')
+           for x in badMD5List:
+               info(x)
+           info('------------------------------------')
     if check_filesize:
         info('size mismatches..... %d' % bad_size_cnt)
+        if badSizeList:
+           info('------------------------------------')
+           for x in badSizeList:
+               info(x)
+           info('------------------------------------')
     if check_zips:
         info('zipfile failures.... %d' % bad_zip_cnt)
+        if badZIPList:
+           info('------------------------------------')
+           for x in badSizeList:
+               info(x)
+           info('------------------------------------')
     if delete_on_fail:
         info('deleted items....... %d' % del_file_cnt)
 
