@@ -781,8 +781,8 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
     work_dict = dict()
 
     # util
-    def kilos(b):
-        return '%.1fkB' % (b / float(1024))
+    def kibs(b):
+        return '%.1fKB' % (b / float(1024))
     def megs(b):
         return '%.1fMB' % (b / float(1024**2))
     def gigs(b):
@@ -793,7 +793,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
         elif b > 1024**2:
             return megs(b)
         elif b > 1024:
-            return kilos(b)
+            return kibs(b)
         else:
             return '%dB' % (b)
 
