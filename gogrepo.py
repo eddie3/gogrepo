@@ -781,10 +781,21 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
     work_dict = dict()
 
     # util
+    def kilos(b):
+        return '%.1fkB' % (b / float(1024))
     def megs(b):
         return '%.1fMB' % (b / float(1024**2))
     def gigs(b):
         return '%.2fGB' % (b / float(1024**3))
+    def auto_size(b):
+        if b > 1024**3:
+            return gigs(b)
+        elif b > 1024**2:
+            return megs(b)
+        elif b > 1024:
+            return kilos(b)
+        else:
+            return '%dB' % (b)
 
     if id:
         id_found = False
@@ -880,7 +891,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
         work.put(work_dict[work_item])
 
     if dryrun:
-        info("{} left to download".format(gigs(sum(sizes.values()))))
+        info("{} left to download".format(auto_size(sum(sizes.values()))))
         return  # bail, as below just kicks off the actual downloading
 
     info('-'*60)
@@ -943,10 +954,10 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
                     szs, ts = flows.get(tid, (0, 0))
                     flows[tid] = sz + szs, t + ts
                 bps = sum(szs/ts for szs, ts in list(flows.values()) if ts > 0)
-                info('%10s %8.1fMB/s %2dx  %s' % \
-                    (megs(sizes[path]), bps / 1024.0**2, len(flows), "%s/%s" % (os.path.basename(os.path.split(path)[0]), os.path.split(path)[1])))
+                info('%10s %s/s %2dx  %s' % \
+                    (auto_size(sizes[path]), auto_size(bps), len(flows), "%s/%s" % (os.path.basename(os.path.split(path)[0]), os.path.split(path)[1])))
             if len(rates) != 0:  # only update if there's change
-                info('%s remaining' % gigs(left))
+                info('%s remaining' % auto_size(left))
             rates.clear()
 
     # process work items with a thread pool
