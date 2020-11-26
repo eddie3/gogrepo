@@ -325,11 +325,30 @@ def item_checkdb(search_id, gamesdb):
         if search_id == gamesdb[i].id:
             return i
     return None
+    
+    
+def move_outdated_files(savedir, olditem, newitem):
+    # move all files that were replaced by a new version (that is files that were in the previous manifest but aren't in the new manifest)
+    # into a version sub-directory prefixed with '!version_'
+    for download in olditem.downloads:
+        if download.name not in [d.name for d in newitem.downloads]:
+            src = os.path.join(savedir, olditem.title, download.name)
+            dst = os.path.join(savedir, olditem.title, '!version_{}'.format(download.version))
+            
+            if os.path.isfile(src):
+                if not os.path.isdir(dst):
+                    os.makedirs(dst)
+                shutil.move(src, os.path.join(dst, download.name))
 
 
-def handle_game_updates(olditem, newitem):
+def handle_game_updates(olditem, newitem, savedir, moveoutdated):
     if newitem.has_updates:
         info('  -> gog flagged this game as updated')
+        
+        # When game has been updated, let's move outdated files to a separate sub-folder dedicated for the older version
+        # so the main game folder remains clean
+        if moveoutdated:
+            move_outdated_files(savedir, olditem, newitem)
 
     if olditem.title != newitem.title:
         info('  -> title has changed "{}" -> "{}"'.format(olditem.title, newitem.title))
@@ -453,8 +472,10 @@ def process_argv(argv):
     g1.add_argument('password', action='store', help='GOG password', nargs='?', default=None)
 
     g1 = sp1.add_parser('update', help='Update locally saved game manifest from GOG server')
+    g1.add_argument('savedir', action='store', help='directory with saved downloads', nargs='?', default='.')
     g1.add_argument('-os', action='store', help='operating system(s)', nargs='*', default=DEFAULT_OS_LIST)
     g1.add_argument('-lang', action='store', help='game language(s)', nargs='*', default=DEFAULT_LANG_LIST)
+    g1.add_argument('-moveoutdated', action='store_true', help='move outdated files to version sub-directories')
     g2 = g1.add_mutually_exclusive_group()  # below are mutually exclusive
     g2.add_argument('-skipknown', action='store_true', help='skip games already known by manifest')
     g2.add_argument('-updateonly', action='store_true', help='only games marked with the update tag')
@@ -596,7 +617,7 @@ def cmd_login(user, passwd):
         error('login failed, verify your username/password and try again.')
 
 
-def cmd_update(os_list, lang_list, skipknown, updateonly, id):
+def cmd_update(os_list, lang_list, savedir, moveoutdated, skipknown, updateonly, id):
     media_type = GOG_MEDIA_TYPE_GAME
     items = []
     known_ids = []
@@ -717,7 +738,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 # update gamesdb with new item
                 item_idx = item_checkdb(item.id, gamesdb)
                 if item_idx is not None:
-                    handle_game_updates(gamesdb[item_idx], item)
+                    handle_game_updates(gamesdb[item_idx], item, savedir, moveoutdated)
                     gamesdb[item_idx] = item
                 else:
                     gamesdb.append(item)
@@ -1142,7 +1163,7 @@ def main(args):
         cmd_login(args.username, args.password)
         return  # no need to see time stats
     elif args.cmd == 'update':
-        cmd_update(args.os, args.lang, args.skipknown, args.updateonly, args.id)
+        cmd_update(args.os, args.lang, args.savedir, args.moveoutdated, args.skipknown, args.updateonly, args.id)
     elif args.cmd == 'download':
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
