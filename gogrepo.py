@@ -1134,8 +1134,22 @@ def cmd_clean(cleandir, dryrun):
                     expected_filenames.append(game_item.name)
                 for cur_dir_file in os.listdir(cur_fulldir):
                     if os.path.isdir(os.path.join(cleandir, cur_dir, cur_dir_file)):
-                        continue  # leave subdirs alone
-                    if cur_dir_file not in expected_filenames and cur_dir_file not in ORPHAN_FILE_EXCLUDE_LIST:
+                        # orphan old version folders
+                        if cur_dir_file.startswith('!version'):
+                            info('Orphaning old version folder {}'.format(os.path.join(cleandir, cur_dir, cur_dir_file)))
+                            have_cleaned = True
+                            dest_dir = os.path.join(orphan_root_dir, cur_dir)
+                            if not os.path.isdir(dest_dir):
+                                os.makedirs(dest_dir)
+                            dir_to_move = os.path.join(cleandir, cur_dir, cur_dir_file)
+                            total_size += get_total_size(dir_to_move)
+                            if not dryrun:
+                                try:
+                                    shutil.move(dir_to_move, dest_dir)
+                                except Exception as e:
+                                    error(e)
+                        # leave other subdirs alone
+                    elif cur_dir_file not in expected_filenames and cur_dir_file not in ORPHAN_FILE_EXCLUDE_LIST:
                         info("orphaning file '{}'".format(os.path.join(cur_dir, cur_dir_file)))
                         have_cleaned = True
                         dest_dir = os.path.join(orphan_root_dir, cur_dir)
