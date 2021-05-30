@@ -490,6 +490,9 @@ def process_argv(argv):
     g1.add_argument('cleandir', action='store', help='root directory containing gog games to be cleaned')
     g1.add_argument('-dryrun', action='store_true', help='do not move files, only display what would be cleaned')
 
+    g1 = sp1.add_parser('list', help='List all games from the local GOG library')
+
+
     g1 = p1.add_argument_group('other')
     g1.add_argument('-h', '--help', action='help', help='show help message and exit')
     g1.add_argument('-v', '--version', action='version', help='show version number and exit',
@@ -1135,6 +1138,20 @@ def cmd_clean(cleandir, dryrun):
         info('nothing to clean. nice and tidy!')
 
 
+def cmd_list():
+    """list all games from the manifest"""
+    info("List all games from the local GOG library")
+    gamesdb = load_manifest()
+    output_format = "{id:12}\t{title:40}\t{long_title:28}"
+    # output a header row with uppercase keys as column headers
+    print(output_format.format(
+        **{key: key.replace("_", " ").upper() for key in gamesdb[0].keys()})
+    )
+
+    for game in sorted(gamesdb, key=lambda g: g.title):
+        print(output_format.format(**game))
+
+
 def main(args):
     stime = datetime.datetime.now()
 
@@ -1159,6 +1176,8 @@ def main(args):
         cmd_backup(args.src_dir, args.dest_dir)
     elif args.cmd == 'clean':
         cmd_clean(args.cleandir, args.dryrun)
+    elif args.cmd == 'list':
+        cmd_list()
 
     etime = datetime.datetime.now()
     info('--')
