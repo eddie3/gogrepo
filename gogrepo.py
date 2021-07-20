@@ -469,6 +469,7 @@ def process_argv(argv):
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
     g1.add_argument('-skipids', action='store', help='id[s] of the game[s] in the manifest to NOT download')
+    g1.add_argument('-showlinks', action='store_true', help='Do not download files and only display download links')
 
     g1 = sp1.add_parser('import', help='Import files with any matching MD5 checksums found in manifest')
     g1.add_argument('src_dir', action='store', help='source directory to import games from')
@@ -771,7 +772,7 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
+def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id, only_dl_link=False):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
@@ -898,7 +899,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
                 rates.setdefault(path, []).append((tid, (sz, dt)))
 
     # downloader worker thread main loop
-    def worker():
+    def worker(only_dl_link=False):
         tid = threading.current_thread().ident
         while not work.empty():
             (href, sz, start, end, path) = work.get()
@@ -915,6 +916,10 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
                     se = start, end
                     try:
                         with request(href, byte_range=se) as page:
+                            if only_dl_link:
+                                info("Download link : {}".format(page.url))
+                                work.task_done()
+                                return
                             hdr = page.headers['Content-Range'].split()[-1]
                             if hdr != '%d-%d/%d' % (start, end, sz):
                                 with lock:
@@ -953,7 +958,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
     lock = threading.Lock()
     pool = []
     for i in range(HTTP_GAME_DOWNLOADER_THREADS):
-        t = threading.Thread(target=worker)
+        t = threading.Thread(target=worker, kwargs={"only_dl_link": only_dl_link})
         t.daemon = True
         t.start()
         pool.append(t)
@@ -1147,7 +1152,8 @@ def main(args):
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id)
+        info(args.showlinks)
+        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id, only_dl_link=args.showlinks)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':
