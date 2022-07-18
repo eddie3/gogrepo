@@ -357,7 +357,7 @@ def fetch_file_info(d, fetch_md5):
         # fetch file md5
         if fetch_md5:
             if os.path.splitext(page.geturl())[1].lower() not in SKIP_MD5_FILE_EXT:
-                tmp_md5_url = page.geturl().replace('?', '.xml?')
+                tmp_md5_url = page.geturl() + '.xml'
                 try:
                     with request(tmp_md5_url) as page:
                         shelf_etree = xml.etree.ElementTree.parse(page).getroot()
