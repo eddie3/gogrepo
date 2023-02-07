@@ -109,10 +109,6 @@ HTTP_RETRY_COUNT = 3
 HTTP_GAME_DOWNLOADER_THREADS = 4
 HTTP_PERM_ERRORCODES = (404, 403, 503)
 
-# Save manifest data for these os and lang combinations
-DEFAULT_OS_LIST = ['windows']
-DEFAULT_LANG_LIST = ['en']
-
 # These file types don't have md5 data from GOG
 SKIP_MD5_FILE_EXT = ['.txt', '.zip']
 
@@ -147,6 +143,10 @@ LANG_TABLE = {'en': u'English',   # English
 
 VALID_OS_TYPES = ['windows', 'linux', 'mac']
 VALID_LANG_TYPES = list(LANG_TABLE.keys())
+
+# Save manifest data for these os and lang combinations
+DEFAULT_OS_LIST = VALID_OS_TYPES
+DEFAULT_LANG_LIST = VALID_LANG_TYPES
 
 ORPHAN_DIR_NAME = '!orphaned'
 ORPHAN_DIR_EXCLUDE_LIST = [ORPHAN_DIR_NAME, '!misc']
