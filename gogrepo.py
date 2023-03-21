@@ -29,6 +29,7 @@ import datetime
 import shutil
 import socket
 import xml.etree.ElementTree
+from random import shuffle
 
 # python 2 / 3 imports
 try:
@@ -469,6 +470,7 @@ def process_argv(argv):
     g1.add_argument('-wait', action='store', type=float,
                     help='wait this long in hours before starting', default=0.0)  # sleep in hr
     g1.add_argument('-skipids', action='store', help='id[s] of the game[s] in the manifest to NOT download')
+    g1.add_argument('-randomorder', action='store_true', help='download games in random order')
 
     g1 = sp1.add_parser('import', help='Import files with any matching MD5 checksums found in manifest')
     g1.add_argument('src_dir', action='store', help='source directory to import games from')
@@ -767,7 +769,7 @@ def cmd_import(src_dir, dest_dir):
             shutil.copy(f, dest_file)
 
 
-def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
+def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id, randomorder):
     sizes, rates, errors = {}, {}, {}
     work = Queue()  # build a list of work items
 
@@ -798,8 +800,12 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
         ignore_list = skipids.split(",")
         items[:] = [item for item in items if item.title not in ignore_list]
 
+    if randomorder:
+        shuffle(items)
+    else:
+        items = sorted(items, key=lambda g: g.title)
     # Find all items to be downloaded and push into work queue
-    for item in sorted(items, key=lambda g: g.title):
+    for item in items:
         info("{%s}" % item.title)
         item_homedir = os.path.join(savedir, item.title)
         if not dryrun:
@@ -1143,7 +1149,7 @@ def main(args):
         if args.wait > 0.0:
             info('sleeping for %.2fhr...' % args.wait)
             time.sleep(args.wait * 60 * 60)
-        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id)
+        cmd_download(args.savedir, args.skipextras, args.skipgames, args.skipids, args.dryrun, args.id, args.randomorder)
     elif args.cmd == 'import':
         cmd_import(args.src_dir, args.dest_dir)
     elif args.cmd == 'verify':
