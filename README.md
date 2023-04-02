@@ -143,7 +143,7 @@ I recommend you use `pip` to install the above python modules.
 TODO
 ----
 * ~~add ability to update and download specific games or new-items only~~
-* add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files
+* ~~add 'clean' command to orphan/remove old or unexpected files to keep your collection clean with only the latest files~~
 * support resuming manifest updating
 * ~~add support for incremental manifest updating (ie. only fetch newly added games) rather than fetching entire collection information~~
 * ability to customize/remap default game directory name
