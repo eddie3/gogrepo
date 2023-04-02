@@ -258,12 +258,14 @@ def load_manifest(filepath=MANIFEST_FILENAME):
       with codecs.open(MANIFEST_FILENAME, 'rU', 'utf-8') as r:
        ad = r.read().replace('{', 'AttrDict(**{').replace('}', '})')
       return eval(ad)
+     except:
+        return []
     if sys.version_info[0] == 3:
      try:
       with codecs.open(MANIFEST_FILENAME, 'r', 'utf-8') as r:
        ad = r.read().replace('{', 'AttrDict(**{').replace('}', '})')
       return eval(ad)
-    except IOError:
+     except IOError:
         return []
 
 
